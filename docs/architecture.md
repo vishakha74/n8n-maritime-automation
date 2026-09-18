@@ -42,6 +42,6 @@ Three workflows, split by trigger rather than by feature. Each one can be switch
 | Output | Rank & Recommend UTM Plans | Top 3 feasible + all evaluated plans |
 | Form hand-off | Prepare UTM Form Context → Build Form Session Row → Attach UTM Form URL | `project_id`, session row, form URL |
 
-`project_id` format: `VSL-<VESSEL-NAME>-<YYYY-MM-DD>`.
+`project_id` format: `UTM-<VESSEL-NAME>-<YYYY-MM-DD>`.
 
 Diagrams: [`architecture/`](../architecture).
