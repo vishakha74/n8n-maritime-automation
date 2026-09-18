@@ -1,0 +1,1004 @@
+{
+  "name": "02 - Vessel Schedule and UTM Route Intelligence",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "### Config\nMaersk key, vessel code, airport CSV path and base URL come from environment variables. See `.env.example`.",
+        "height": 200,
+        "width": 420,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -420
+      ],
+      "id": "58acf305-5fb8-41c0-955e-2a3fa4bb6813",
+      "name": "Note: Secrets"
+    },
+    {
+      "parameters": {
+        "content": "## 2. Route engine (deterministic)\nPort calls within +/-7 days of the requested date -> Nominatim port geocoding (harbour-first scoring) -> OurAirports screening (IATA only, non-military, <=100 km) -> OSRM airport-to-port road leg -> 12 h safety buffer before departure -> score -> Top 3 feasible plans.\n\nThe sub-workflow entry lets the UTM form re-run this same path with real member locations.",
+        "height": 380,
+        "width": 1500,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        -420
+      ],
+      "id": "cb2552f4-e58e-452d-8bc3-a0cda03741f5",
+      "name": "Note: Route engine"
+    },
+    {
+      "parameters": {
+        "content": "## 1. Enquiry intake\nGmail poll (1 min) -> sender filter -> email normalisation -> Llama 3.2 3B extracts `vessel_name` and `utm_date_requested` as JSON -> regex parser validates the output.",
+        "height": 440,
+        "width": 1180
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        340,
+        -160
+      ],
+      "id": "3b36502f-7a49-436e-aea5-94d9b7c3a3ed",
+      "name": "Note: Intake"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        400,
+        96
+      ],
+      "id": "2e2e8924-5909-46fb-ad13-fc071cc9af7f",
+      "name": "Gmail Enquiry Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_LOCAL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        576,
+        96
+      ],
+      "id": "d70e8e6b-c1dd-447e-8f79-9a72a739bdde",
+      "name": "Get Enquiry Email",
+      "webhookId": "061f4c74-a25d-4771-b296-96a9185bd92d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_LOCAL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5720fbe6-c927-4118-acc8-9c4826ad4339",
+              "leftValue": "={{ $json.headers.from }}",
+              "rightValue": "enquiries@example.com",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        800,
+        96
+      ],
+      "id": "533b4450-00c9-49f3-b40e-c6f34fe5d9fe",
+      "name": "Filter Enquiry Sender"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "llama3.2:3b",
+          "mode": "list",
+          "cachedResultName": "llama3.2:3b"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Read the email below and extract two pieces of information.\n\nVessel name:\nFind the actual vessel name mentioned in the email.\n\nUTM requested date:\nFind the date specifically associated with the UTM attendance/request.\n\nRules:\n- Use ONLY the email provided below.\n- Do NOT use information from previous messages, examples, memory, or other context.\n- Do NOT guess.\n- Do NOT invent a vessel name.\n- Do NOT invent a date.\n- Convert the requested date to YYYY-MM-DD.\n- Return ONLY valid JSON.\n- No explanation.\n- No markdown.\n\nRequired output:\n\n{\n  \"vessel_name\": null,\n  \"utm_date_requested\": null\n}\n\nEMAIL TO ANALYZE:\n\nFrom: {{ $json.email_from.text }}\nTo: {{ $json.email_to.text }}\nSubject: {{ $json.email_subject }}\nDate: {{ $json.email_date }}\n\nBODY:\n{{ $json.email_body }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.ollama",
+      "typeVersion": 1,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "28a79a7b-30eb-48ff-903e-c1a39dccd930",
+      "name": "Extract Vessel and Date (Ollama)",
+      "credentials": {
+        "ollamaApi": {
+          "id": "REPLACE_WITH_LOCAL_CREDENTIAL_ID",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = String($json.content || '');\n\nif (!content) {\n  throw new Error('No content received.');\n}\n\n// Normalize the malformed escaped underscores.\n// Converts:\n// vessel\\_name -> vessel_name\n// utm\\_date\\_requested -> utm_date_requested\nconst cleaned = content.replace(/\\\\_/g, '_');\n\n// Extract vessel name\nconst vesselMatch = cleaned.match(\n  /[\"']?vessel_name[\"']?\\s*:\\s*[\"']([^\"']+)[\"']/\n);\n\n// Extract UTM requested date\nconst dateMatch = cleaned.match(\n  /[\"']?utm_date_requested[\"']?\\s*:\\s*[\"']([^\"']+)[\"']/\n);\n\nconst vesselName = vesselMatch\n  ? vesselMatch[1].trim()\n  : null;\n\nconst utmDate = dateMatch\n  ? dateMatch[1].trim()\n  : null;\n\nif (!vesselName) {\n  throw new Error(\n    `Could not extract vessel_name.\\n\\nCleaned content:\\n${cleaned}`\n  );\n}\n\nif (!utmDate) {\n  throw new Error(\n    `Could not extract utm_date_requested.\\n\\nCleaned content:\\n${cleaned}`\n  );\n}\n\nreturn [\n  {\n    json: {\n      vessel_name: vesselName,\n      utm_date_requested: utmDate\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        16
+      ],
+      "id": "d862a807-eb0c-4b80-b145-14f22dc232c2",
+      "name": "Parse LLM Extraction"
+    },
+    {
+      "parameters": {
+        "url": "https://api.maersk.com/synergy/schedules/vessel-schedules",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "vesselMaerskCode",
+              "value": "={{ $env.MAERSK_VESSEL_CODE }}"
+            },
+            {
+              "name": "fromDate",
+              "value": "2026-09-03"
+            },
+            {
+              "name": "toDate",
+              "value": "2026-10-15"
+            },
+            {
+              "name": "carrierCodes",
+              "value": "MAEU"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Consumer-Key",
+              "value": "={{ $env.MAERSK_CONSUMER_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1632,
+        0
+      ],
+      "id": "b966557c-9a33-4172-8111-b9733e70622e",
+      "name": "Maersk Vessel Schedule API"
+    },
+    {
+      "parameters": {
+        "jsCode": "const schedules = $json.vesselSchedules || [];\n\n// Get the original extracted enquiry data\nconst extraction = $('Parse LLM Extraction').first().json;\n\nconst vesselName = extraction.vessel_name;\nconst utmDate = extraction.utm_date_requested;\n\nreturn schedules.map((s, index) => {\n  const arrival = new Date(s.arrivalTime);\n  const departure = new Date(s.departureTime);\n\n  const stayHours =\n    (departure.getTime() - arrival.getTime()) / (1000 * 60 * 60);\n\n  return {\n    json: {\n      vessel_name: vesselName,\n      utm_date_requested: utmDate,\n\n      sequence: index + 1,\n\n      port: s.portName,\n      city: s.cityName,\n      country: s.countryName,\n      country_code: s.isoCountryCode,\n      un_location_code: s.unLocationCode,\n\n      arrival: s.arrivalTime,\n      departure: s.departureTime,\n\n      stay_hours: Math.round(stayHours * 10) / 10,\n\n      arrival_status: s.arrivalTimingClassifier,\n      departure_status: s.departureTimingClassifier,\n\n      arrival_voyage: s.arrivalVoyageNumber,\n      departure_voyage: s.departureVoyageNumber,\n\n      service: s.arrivalServiceName,\n      service_code: s.arrivalServiceCode\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        0
+      ],
+      "id": "c42307b7-706b-440d-9f09-90ad022767e0",
+      "name": "Normalise Port Calls"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json;\n\nreturn {\n  json: {\n    email_from: input.From || input.from || \"\",\n    email_to: input.To || input.to || \"\",\n    email_subject: input.Subject || input.subject || \"\",\n    email_date: input.Date || input.date || \"\",\n    email_snippet: input.snippet || \"\",\n    email_body: input.textPlain || input.text || input.body || \"\"\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        128
+      ],
+      "id": "50165a97-a293-4a3f-aa2b-2be96dfd6ea8",
+      "name": "Normalise Email"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputItems = $input.all();\n\nif (!inputItems.length) {\n  throw new Error('No vessel schedule data received.');\n}\n\nconst extraction = $('Parse LLM Extraction').first().json;\n\nconst vesselName =\n  extraction.vessel_name ||\n  inputItems[0].json.vessel_name ||\n  null;\n\nconst utmDateString =\n  extraction.utm_date_requested ||\n  inputItems[0].json.utm_date_requested ||\n  null;\n\nif (!utmDateString) {\n  throw new Error('UTM requested date is missing.');\n}\n\n/*\n * ---------------------------------------------------------\n * REQUESTED DATE\n * ---------------------------------------------------------\n */\n\nconst requestedStart =\n  new Date(`${utmDateString}T00:00:00`);\n\nconst requestedEnd =\n  new Date(`${utmDateString}T23:59:59`);\n\nif (\n  Number.isNaN(requestedStart.getTime()) ||\n  Number.isNaN(requestedEnd.getTime())\n) {\n  throw new Error(`Invalid UTM date: ${utmDateString}`);\n}\n\n/*\n * ---------------------------------------------------------\n * JOINING WINDOW\n *\n * 7 days before and 7 days after requested date.\n * ---------------------------------------------------------\n */\n\nconst windowStart = new Date(requestedStart);\nwindowStart.setDate(windowStart.getDate() - 7);\n\nconst windowEnd = new Date(requestedEnd);\nwindowEnd.setDate(windowEnd.getDate() + 7);\n\n/*\n * ---------------------------------------------------------\n * BUILD CANDIDATES\n * ---------------------------------------------------------\n */\n\nconst candidates = [];\n\nfor (const item of inputItems) {\n\n  const schedule = item.json;\n\n  if (\n    !schedule.port ||\n    !schedule.arrival ||\n    !schedule.departure\n  ) {\n    continue;\n  }\n\n  const arrival = new Date(schedule.arrival);\n  const departure = new Date(schedule.departure);\n\n  if (\n    Number.isNaN(arrival.getTime()) ||\n    Number.isNaN(departure.getTime())\n  ) {\n    continue;\n  }\n\n  /*\n   * Keep the call if any part of the vessel's\n   * port stay falls inside our joining window.\n   */\n  const overlapsWindow =\n    arrival <= windowEnd &&\n    departure >= windowStart;\n\n  if (!overlapsWindow) {\n    continue;\n  }\n\n  /*\n   * -------------------------------------------------------\n   * IS VESSEL IN PORT ON REQUESTED DATE?\n   * -------------------------------------------------------\n   */\n\n  const inPortOnRequestedDate =\n    arrival <= requestedEnd &&\n    departure >= requestedStart;\n\n  /*\n   * -------------------------------------------------------\n   * DISTANCE FROM REQUESTED DATE\n   * -------------------------------------------------------\n   */\n\n  let daysFromRequestedDate = 0;\n\n  if (inPortOnRequestedDate) {\n\n    daysFromRequestedDate = 0;\n\n  } else if (departure < requestedStart) {\n\n    daysFromRequestedDate =\n      (\n        requestedStart.getTime() -\n        departure.getTime()\n      ) /\n      (1000 * 60 * 60 * 24);\n\n  } else {\n\n    daysFromRequestedDate =\n      (\n        arrival.getTime() -\n        requestedEnd.getTime()\n      ) /\n      (1000 * 60 * 60 * 24);\n  }\n\n  /*\n   * -------------------------------------------------------\n   * DATE RELATION\n   * -------------------------------------------------------\n   */\n\n  let dateRelation;\n\n  if (inPortOnRequestedDate) {\n\n    dateRelation =\n      'VESSEL_IN_PORT_ON_REQUESTED_DATE';\n\n  } else if (departure < requestedStart) {\n\n    dateRelation =\n      'VESSEL_DEPARTS_BEFORE_REQUESTED_DATE';\n\n  } else if (arrival > requestedEnd) {\n\n    dateRelation =\n      'VESSEL_ARRIVES_AFTER_REQUESTED_DATE';\n\n  } else {\n\n    dateRelation =\n      'WITHIN_JOINING_WINDOW';\n  }\n\n  /*\n   * -------------------------------------------------------\n   * PORT STAY\n   * -------------------------------------------------------\n   */\n\n  const stayHours =\n    (\n      departure.getTime() -\n      arrival.getTime()\n    ) /\n    (1000 * 60 * 60);\n\n  /*\n   * -------------------------------------------------------\n   * PRELIMINARY SCORE\n   * -------------------------------------------------------\n   */\n\n  let score = 0;\n\n  /*\n   * The requested date being inside the vessel's\n   * port stay is the strongest criterion.\n   */\n  if (inPortOnRequestedDate) {\n    score += 100;\n  }\n\n  /*\n   * Distance penalty.\n   */\n  score -= daysFromRequestedDate * 10;\n\n  /*\n   * Port stay preference.\n   */\n  if (stayHours >= 48) {\n    score += 20;\n  } else if (stayHours >= 24) {\n    score += 15;\n  } else if (stayHours >= 12) {\n    score += 8;\n  }\n\n  /*\n   * Schedule confidence.\n   */\n  const status =\n    String(schedule.arrival_status || schedule.schedule_status || '')\n      .toUpperCase();\n\n  if (status === 'SCHEDULED') {\n    score += 10;\n  } else if (status === 'ESTIMATED') {\n    score += 5;\n  }\n\n  candidates.push({\n\n    vessel_name:\n      vesselName,\n\n    utm_date_requested:\n      utmDateString,\n\n    option_type:\n      'POSSIBLE_JOINING_PORT',\n\n    join_port:\n      schedule.port,\n\n    join_city:\n      schedule.city || schedule.port,\n\n    join_country:\n      schedule.country || null,\n\n    join_country_code:\n      schedule.country_code || null,\n\n    join_un_location_code:\n      schedule.un_location_code || null,\n\n    vessel_arrival:\n      schedule.arrival,\n\n    vessel_departure:\n      schedule.departure,\n\n    port_stay_hours:\n      Math.round(stayHours * 10) / 10,\n\n    schedule_status:\n      schedule.arrival_status ||\n      schedule.schedule_status ||\n      null,\n\n    arrival_voyage:\n      schedule.arrival_voyage ||\n      null,\n\n    departure_voyage:\n      schedule.departure_voyage ||\n      null,\n\n    service:\n      schedule.service ||\n      null,\n\n    service_code:\n      schedule.service_code ||\n      null,\n\n    days_from_requested_date:\n      Math.round(daysFromRequestedDate * 10) / 10,\n\n    date_relation:\n      dateRelation,\n\n    vessel_in_port_on_requested_date:\n      inPortOnRequestedDate,\n\n    preliminary_suitability_score:\n      Math.round(score * 10) / 10\n  });\n}\n\n/*\n * ---------------------------------------------------------\n * REMOVE DUPLICATES\n * ---------------------------------------------------------\n */\n\nconst unique = [];\n\nconst seen = new Set();\n\nfor (const candidate of candidates) {\n\n  const key = [\n    candidate.join_un_location_code,\n    candidate.vessel_arrival,\n    candidate.vessel_departure\n  ].join('|');\n\n  if (seen.has(key)) {\n    continue;\n  }\n\n  seen.add(key);\n  unique.push(candidate);\n}\n\n/*\n * ---------------------------------------------------------\n * SORT\n *\n * 1. In port on requested date\n * 2. Preliminary score\n * 3. Closest to requested date\n * 4. Longest port stay\n * ---------------------------------------------------------\n */\n\nunique.sort((a, b) => {\n\n  if (\n    a.vessel_in_port_on_requested_date !==\n    b.vessel_in_port_on_requested_date\n  ) {\n    return (\n      Number(b.vessel_in_port_on_requested_date) -\n      Number(a.vessel_in_port_on_requested_date)\n    );\n  }\n\n  if (\n    a.preliminary_suitability_score !==\n    b.preliminary_suitability_score\n  ) {\n    return (\n      b.preliminary_suitability_score -\n      a.preliminary_suitability_score\n    );\n  }\n\n  if (\n    a.days_from_requested_date !==\n    b.days_from_requested_date\n  ) {\n    return (\n      a.days_from_requested_date -\n      b.days_from_requested_date\n    );\n  }\n\n  return (\n    b.port_stay_hours -\n    a.port_stay_hours\n  );\n});\n\n/*\n * ---------------------------------------------------------\n * OUTPUT\n * ---------------------------------------------------------\n */\n\nreturn unique\n  .slice(0, 10)\n  .map((candidate, index) => ({\n    json: {\n      ...candidate,\n      option_number: index + 1\n    }\n  }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2048,
+        0
+      ],
+      "id": "4993e532-1f00-4614-b618-a3f020716de4",
+      "name": "Generate UTM Joining Options"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nif (!items.length) {\n  throw new Error('No joining options received.');\n}\n\n// Get vessel/enquiry information\nconst first = items[0].json;\n\nconst vesselName = first.vessel_name;\nconst utmDate = first.utm_date_requested;\n\n// Temporary member information\n// Later these values will come from the form.\n\nconst members = [\n  {\n    member_id: 1,\n    member_name: \"Member 1\",\n    origin_city: \"Mumbai\",\n    origin_country: \"India\",\n    available_from: utmDate,\n    available_until: utmDate,\n\n    // Temporary visa assumption.\n    // We will replace this with the actual form data later.\n    visa_permissions: []\n  },\n\n  {\n    member_id: 2,\n    member_name: \"Member 2\",\n    origin_city: \"Mumbai\",\n    origin_country: \"India\",\n    available_from: utmDate,\n    available_until: utmDate,\n\n    visa_permissions: []\n  }\n];\n\nreturn [\n  {\n    json: {\n      vessel_name: vesselName,\n      utm_date_requested: utmDate,\n\n      joining_options: items.map(item => item.json),\n\n      members\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2256,
+        0
+      ],
+      "id": "de527f84-8288-4420-a6c1-3a95fc437489",
+      "name": "Prepare Default Mumbai Members"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\nif (!input) {\n  throw new Error('No UTM planning data received.');\n}\n\nconst members = input.members || [];\nconst joiningOptions = input.joining_options || [];\n\nif (!members.length) {\n  throw new Error('No UTM members found.');\n}\n\nif (!joiningOptions.length) {\n  throw new Error('No vessel joining options found.');\n}\n\nconst queries = [];\n\nfor (const member of members) {\n  for (const option of joiningOptions) {\n\n    queries.push({\n      json: {\n        // -----------------------------\n        // VESSEL\n        // -----------------------------\n        vessel_name: input.vessel_name,\n        utm_date_requested: input.utm_date_requested,\n\n        // -----------------------------\n        // MEMBER\n        // -----------------------------\n        member_id: member.member_id,\n        member_name: member.member_name,\n\n        origin_city: member.origin_city,\n        origin_country: member.origin_country,\n\n        member_available_from:\n          member.available_from || null,\n\n        member_available_until:\n          member.available_until || null,\n\n        visa_permissions:\n          member.visa_permissions || [],\n\n        // -----------------------------\n        // DESTINATION\n        // -----------------------------\n        destination_port:\n          option.join_port,\n\n        destination_city:\n          option.join_city,\n\n        destination_country:\n          option.join_country,\n\n        destination_country_code:\n          option.join_country_code || null,\n\n        un_location_code:\n          option.join_un_location_code || null,\n\n        // -----------------------------\n        // VESSEL SCHEDULE\n        // -----------------------------\n        vessel_arrival:\n          option.vessel_arrival,\n\n        vessel_departure:\n          option.vessel_departure,\n\n        port_stay_hours:\n          option.port_stay_hours || null,\n\n        schedule_status:\n          option.schedule_status || null,\n\n        date_relation:\n          option.date_relation || null,\n\n        // -----------------------------\n        // TRAVEL SEARCH\n        // -----------------------------\n        origin_iata: null,\n        destination_iata: null,\n\n        travel_search_date:\n          member.available_from ||\n          input.utm_date_requested,\n\n        travel_time_hours: null,\n        travel_distance_km: null,\n\n        travel_status:\n          \"PENDING_AIRPORT_RESOLUTION\",\n\n        // -----------------------------\n        // VISA\n        // -----------------------------\n        visa_status:\n          member.visa_permissions &&\n          member.visa_permissions.length > 0\n            ? \"PROVIDED\"\n            : \"REQUIRES_CONFIRMATION\",\n\n        // -----------------------------\n        // ROUTE\n        // -----------------------------\n        route_status:\n          \"PENDING_TRAVEL_DATA\"\n      }\n    });\n  }\n}\n\nreturn queries;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2480,
+        0
+      ],
+      "id": "44cf3b7d-9d9f-4c56-bcfa-5151ab1fb4ea",
+      "name": "Prepare Travel Route Queries"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst airportMap = {\n  \"Mumbai\": {\n    iata: \"BOM\",\n    airport: \"Chhatrapati Shivaji Maharaj International Airport\"\n  },\n\n  \"Beirut\": {\n    iata: \"BEY\",\n    airport: \"Beirut-Rafic Hariri International Airport\"\n  }\n};\n\nreturn items.map(item => {\n\n  const data = item.json;\n\n  const origin = airportMap[data.origin_city];\n  const destination = airportMap[data.destination_city];\n\n  const resolved = !!(origin && destination);\n\n  return {\n    json: {\n      ...data,\n\n      origin_iata:\n        origin ? origin.iata : null,\n\n      origin_airport:\n        origin ? origin.airport : null,\n\n      destination_iata:\n        destination ? destination.iata : null,\n\n      destination_airport:\n        destination ? destination.airport : null,\n\n      airport_resolution_status:\n        resolved\n          ? \"RESOLVED\"\n          : \"REQUIRES_AIRPORT_MAPPING\",\n\n      travel_status:\n        resolved\n          ? \"PENDING_TRAVEL_DATA\"\n          : \"PENDING_AIRPORT_RESOLUTION\"\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2704,
+        0
+      ],
+      "id": "e0cf3ca8-5fc1-4249-bda0-c6773d4241d5",
+      "name": "Resolve Travel Airports"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nif (!items.length) {\n  throw new Error('No travel route items received.');\n}\n\n// Create one geocoding request per unique vessel port.\nconst uniquePorts = new Map();\n\nfor (const item of items) {\n  const data = item.json;\n\n  const portName =\n    data.destination_port ||\n    data.destination_city ||\n    null;\n\n  const country =\n    data.destination_country ||\n    null;\n\n  if (!portName) continue;\n\n  const key = `${String(portName).trim().toLowerCase()}|${String(country).trim().toLowerCase()}`;\n\n  if (!uniquePorts.has(key)) {\n    uniquePorts.set(key, {\n      port_name: portName,\n      country: country,\n      geocode_query: `${portName}, ${country}`\n    });\n  }\n}\n\nconst output = Array.from(uniquePorts.values()).map(port => ({\n  json: {\n    port_name: port.port_name,\n    country: port.country,\n    port_geocode_query: port.geocode_query,\n    port_geocode_status: 'READY'\n  }\n}));\n\nif (!output.length) {\n  throw new Error('No vessel ports available for geocoding.');\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2928,
+        0
+      ],
+      "id": "5714ded9-8464-438f-992c-d49408039598",
+      "name": "Prepare Port Geocoding"
+    },
+    {
+      "parameters": {
+        "url": "https://nominatim.openstreetmap.org/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.port_geocode_query }}"
+            },
+            {
+              "name": "format",
+              "value": "jsonv2"
+            },
+            {
+              "name": "limit",
+              "value": "5"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "VSL-Marine-n8n-UTM-Planner/1.0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3184,
+        320
+      ],
+      "id": "de9e1859-cae9-4cdf-8f61-5f99f3ef4918",
+      "name": "Geocode Vessel Port"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst output = [];\n\nfor (const item of items) {\n\n  const input = item.json;\n\n  /*\n   * If n8n has split Nominatim results into separate items,\n   * collect all items belonging to this port search.\n   */\n  const results = items.map(i => i.json);\n\n  if (!results.length) {\n    output.push({\n      json: {\n        ...input,\n        port_geocode_status: \"NO_PORT_RESULT_FOUND\"\n      }\n    });\n    continue;\n  }\n\n  const ranked = results.map(result => {\n\n    const name =\n      String(result.name || \"\").toLowerCase();\n\n    const displayName =\n      String(result.display_name || \"\").toLowerCase();\n\n    const type =\n      String(result.type || \"\").toLowerCase();\n\n    const category =\n      String(result.category || \"\").toLowerCase();\n\n    const addresstype =\n      String(result.addresstype || \"\").toLowerCase();\n\n    const forbiddenTypes = [\n      \"administrative\",\n      \"boundary\",\n      \"city\",\n      \"town\",\n      \"village\",\n      \"municipality\",\n      \"suburb\",\n      \"neighbourhood\",\n      \"district\",\n      \"state\",\n      \"county\",\n      \"region\"\n    ];\n\n    const isForbidden =\n      forbiddenTypes.includes(type) ||\n      forbiddenTypes.includes(addresstype) ||\n      category === \"boundary\";\n\n    if (isForbidden) {\n      return {\n        result,\n        score: -10000,\n        rejected: true\n      };\n    }\n\n    let score = 0;\n\n    if (type === \"harbour\") score += 200;\n\n    if (addresstype === \"harbour\") score += 150;\n\n    const maritimeTypes = [\n      \"port\",\n      \"marina\",\n      \"dock\",\n      \"pier\",\n      \"quay\",\n      \"terminal\"\n    ];\n\n    if (maritimeTypes.includes(type)) {\n      score += 120;\n    }\n\n    if (maritimeTypes.includes(addresstype)) {\n      score += 100;\n    }\n\n    if (\n      name.includes(\"port\") ||\n      name.includes(\"harbour\") ||\n      name.includes(\"harbor\") ||\n      name.includes(\"terminal\") ||\n      name.includes(\"marina\")\n    ) {\n      score += 50;\n    }\n\n    if (\n      displayName.includes(\"port\") ||\n      displayName.includes(\"harbour\") ||\n      displayName.includes(\"harbor\") ||\n      displayName.includes(\"terminal\") ||\n      displayName.includes(\"marina\")\n    ) {\n      score += 30;\n    }\n\n    if (type === \"industrial\") {\n      score -= 50;\n    }\n\n    if (\n      result.lat &&\n      result.lon &&\n      Number.isFinite(Number(result.lat)) &&\n      Number.isFinite(Number(result.lon))\n    ) {\n      score += 20;\n    } else {\n      score -= 10000;\n    }\n\n    return {\n      result,\n      score,\n      rejected: false\n    };\n\n  });\n\n  const validRanked = ranked\n    .filter(item => !item.rejected)\n    .sort((a, b) => b.score - a.score);\n\n  const best = validRanked[0]?.result;\n\n  if (\n    !best ||\n    !best.lat ||\n    !best.lon\n  ) {\n\n    /*\n     * Only output this once if no maritime result exists.\n     */\n    if (items.indexOf(item) !== 0) continue;\n\n    output.push({\n      json: {\n        ...input,\n\n        selected_port_name: null,\n        selected_port_display_name: null,\n        selected_port_type: null,\n        selected_port_category: null,\n\n        port_latitude: null,\n        port_longitude: null,\n\n        port_place_id: null,\n        port_osm_type: null,\n        port_osm_id: null,\n\n        port_geocode_status:\n          \"NO_VALID_MARITIME_PORT_FOUND\",\n\n        port_selection_method:\n          \"HARBOUR_PRIORITY\"\n      }\n    });\n\n    continue;\n  }\n\n  /*\n   * Only output the best maritime result.\n   */\n  if (items.indexOf(item) !== 0) {\n    continue;\n  }\n\n  output.push({\n    json: {\n\n      ...input,\n\n      selected_port_name:\n        best.name || null,\n\n      selected_port_display_name:\n        best.display_name || null,\n\n      selected_port_type:\n        best.type || null,\n\n      selected_port_category:\n        best.category || null,\n\n      port_latitude:\n        Number(best.lat),\n\n      port_longitude:\n        Number(best.lon),\n\n      port_place_id:\n        best.place_id || null,\n\n      port_osm_type:\n        best.osm_type || null,\n\n      port_osm_id:\n        best.osm_id || null,\n\n      port_geocode_status:\n        \"PORT_COORDINATES_FOUND\",\n\n      port_selection_method:\n        \"HARBOUR_PRIORITY\"\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3408,
+        320
+      ],
+      "id": "2f8feb30-486c-4ab4-9e9f-dacf0a1624f9",
+      "name": "Select Correct Vessel Port"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst uniquePorts = new Map();\n\nfor (const item of items) {\n  const data = item.json;\n\n  const lat = Number(data.port_latitude);\n  const lon = Number(data.port_longitude);\n\n  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {\n    continue;\n  }\n\n  const portName =\n    data.selected_port_name ||\n    data.destination_port ||\n    data.join_port ||\n    data.vessel_port ||\n    null;\n\n  const portDisplayName =\n    data.selected_port_display_name ||\n    data.vessel_port_display_name ||\n    null;\n\n  const country =\n    data.destination_country ||\n    data.join_country ||\n    data.country ||\n    null;\n\n  const key = `${lat.toFixed(5)},${lon.toFixed(5)}`;\n\n  if (!uniquePorts.has(key)) {\n    uniquePorts.set(key, {\n      port_key: key,\n      port_name: portName,\n      port_display_name: portDisplayName,\n      port_latitude: lat,\n      port_longitude: lon,\n      country: country\n    });\n  }\n}\n\nconst ports = Array.from(uniquePorts.values());\n\nif (!ports.length) {\n  throw new Error('No vessel ports with valid coordinates were found.');\n}\n\n/*\n * Lightweight Overpass query.\n *\n * Only airport nodes with IATA codes are requested.\n * 75 km is sufficient for practical airport discovery.\n */\n\nconst queries = ports.map(port => `\n  node\n    [\"aeroway\"=\"aerodrome\"]\n    [\"iata\"]\n    (around:75000,${port.port_latitude},${port.port_longitude});\n`).join('\\n');\n\nconst overpassQuery = `\n[out:json][timeout:30];\n\n(\n${queries}\n);\n\nout tags;\n`;\n\nreturn [{\n  json: {\n    port_count: ports.length,\n    ports,\n    overpass_query: overpassQuery\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3632,
+        320
+      ],
+      "id": "b8dcae60-3df7-4f9f-be0d-97b921f9563d",
+      "name": "Prepare Airport Search"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rank airports returned by Overpass\n// based on suitability for UTM crew travel.\n\nconst input = $input.first().json;\n\n// --------------------------------------------------\n// 1. Get the airport results from Overpass\n// --------------------------------------------------\n\nconst elements = input.elements || [];\n\nif (!Array.isArray(elements) || elements.length === 0) {\n  throw new Error('No airport results returned from Overpass.');\n}\n\n// --------------------------------------------------\n// 2. Recover the vessel-port information\n// --------------------------------------------------\n// Prepare Airport Search produced the unique ports.\n// We fetch that information from the previous node.\n\nconst airportSearch = $('Prepare Airport Search').first().json;\n\nconst ports = airportSearch.ports || [];\n\nif (!Array.isArray(ports) || ports.length === 0) {\n  throw new Error('No vessel-port coordinates found from Prepare Airport Search.');\n}\n\n// --------------------------------------------------\n// 3. Haversine distance\n// --------------------------------------------------\n\nfunction distanceKm(lat1, lon1, lat2, lon2) {\n  const R = 6371;\n\n  const toRad = value => value * Math.PI / 180;\n\n  const dLat = toRad(lat2 - lat1);\n  const dLon = toRad(lon2 - lon1);\n\n  const a =\n    Math.sin(dLat / 2) ** 2 +\n    Math.cos(toRad(lat1)) *\n    Math.cos(toRad(lat2)) *\n    Math.sin(dLon / 2) ** 2;\n\n  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));\n\n  return R * c;\n}\n\n// --------------------------------------------------\n// 4. Extract airport coordinates\n// --------------------------------------------------\n\nfunction getAirportCoordinates(airport) {\n  let lat = airport.lat;\n  let lon = airport.lon;\n\n  // Ways/relations may return coordinates under \"center\"\n  if ((!lat || !lon) && airport.center) {\n    lat = airport.center.lat;\n    lon = airport.center.lon;\n  }\n\n  if (!lat || !lon) {\n    return null;\n  }\n\n  return {\n    lat: Number(lat),\n    lon: Number(lon)\n  };\n}\n\n// --------------------------------------------------\n// 5. Convert airport records\n// --------------------------------------------------\n\nconst airports = [];\n\nfor (const airport of elements) {\n\n  const coordinates = getAirportCoordinates(airport);\n\n  if (!coordinates) {\n    continue;\n  }\n\n  const tags = airport.tags || {};\n\n  const name =\n    tags['name:en'] ||\n    tags.name ||\n    tags['int_name'] ||\n    tags['official_name'] ||\n    null;\n\n  const iata =\n    tags.iata ||\n    null;\n\n  const icao =\n    tags.icao ||\n    null;\n\n  const aeroway =\n    tags.aeroway ||\n    null;\n\n  // ------------------------------------------------\n  // Determine airport characteristics\n  // ------------------------------------------------\n\n  const nameLower = String(name || '').toLowerCase();\n\n  const militaryKeywords = [\n    'military',\n    'air base',\n    'airbase',\n    'air force',\n    'army air',\n    'naval air'\n  ];\n\n  const isMilitary =\n    militaryKeywords.some(keyword =>\n      nameLower.includes(keyword)\n    );\n\n  const hasIata = !!iata;\n\n  // ------------------------------------------------\n  // Match airport to nearest vessel port\n  // ------------------------------------------------\n\n  let nearestPort = null;\n  let nearestDistance = Infinity;\n\n  for (const port of ports) {\n\n    const portLat = Number(port.port_latitude);\n    const portLon = Number(port.port_longitude);\n\n    if (!Number.isFinite(portLat) || !Number.isFinite(portLon)) {\n      continue;\n    }\n\n    const distance = distanceKm(\n      coordinates.lat,\n      coordinates.lon,\n      portLat,\n      portLon\n    );\n\n    if (distance < nearestDistance) {\n      nearestDistance = distance;\n      nearestPort = port;\n    }\n  }\n\n  if (!nearestPort) {\n    continue;\n  }\n\n  // ------------------------------------------------\n  // Airport suitability score\n  // ------------------------------------------------\n\n  let score = 0;\n\n  // Prefer IATA airports\n  if (hasIata) {\n    score += 30;\n  }\n\n  // Prefer proper airports\n  if (aeroway === 'aerodrome') {\n    score += 10;\n  }\n\n  // Strongly penalize military facilities\n  if (isMilitary) {\n    score -= 100;\n  }\n\n  // Distance score\n  if (nearestDistance <= 25) {\n    score += 40;\n  } else if (nearestDistance <= 50) {\n    score += 30;\n  } else if (nearestDistance <= 75) {\n    score += 20;\n  } else if (nearestDistance <= 100) {\n    score += 10;\n  } else {\n    score -= 10;\n  }\n\n  airports.push({\n    airport_name: name,\n    airport_name_local: tags.name || null,\n\n    iata_code: iata,\n    icao_code: icao,\n\n    airport_type: aeroway,\n\n    latitude: coordinates.lat,\n    longitude: coordinates.lon,\n\n    is_military: isMilitary,\n    has_iata: hasIata,\n\n    vessel_port: nearestPort.port_name,\n    vessel_port_display_name: nearestPort.port_display_name,\n\n    port_latitude: nearestPort.port_latitude,\n    port_longitude: nearestPort.port_longitude,\n\n    straight_line_distance_km:\n      Math.round(nearestDistance * 100) / 100,\n\n    suitability_score: score\n  });\n}\n\n// --------------------------------------------------\n// 6. Remove duplicate airports\n// --------------------------------------------------\n\nconst uniqueAirports = new Map();\n\nfor (const airport of airports) {\n\n  const key =\n    airport.iata_code ||\n    airport.icao_code ||\n    `${airport.latitude},${airport.longitude}`;\n\n  if (!uniqueAirports.has(key)) {\n    uniqueAirports.set(key, airport);\n  }\n}\n\n// --------------------------------------------------\n// 7. Sort best → worst\n// --------------------------------------------------\n\nconst rankedAirports = Array.from(uniqueAirports.values())\n  .sort((a, b) => {\n\n    // First suitability score\n    if (b.suitability_score !== a.suitability_score) {\n      return b.suitability_score - a.suitability_score;\n    }\n\n    // Then geographic distance\n    return (\n      a.straight_line_distance_km -\n      b.straight_line_distance_km\n    );\n  });\n\n// --------------------------------------------------\n// 8. Keep the best candidates\n// --------------------------------------------------\n\n// We don't need hundreds of airports.\n// Keep top 10 for each vessel port.\n\nconst resultsByPort = {};\n\nfor (const airport of rankedAirports) {\n\n  const key =\n    airport.vessel_port ||\n    `${airport.port_latitude},${airport.port_longitude}`;\n\n  if (!resultsByPort[key]) {\n    resultsByPort[key] = [];\n  }\n\n  if (resultsByPort[key].length < 10) {\n    resultsByPort[key].push(airport);\n  }\n}\n\n// --------------------------------------------------\n// 9. Return one item per vessel port\n// --------------------------------------------------\n\nconst output = [];\n\nfor (const [portKey, airportsForPort] of Object.entries(resultsByPort)) {\n\n  if (!airportsForPort.length) {\n    continue;\n  }\n\n  const first = airportsForPort[0];\n\n  output.push({\n    json: {\n      vessel_port: first.vessel_port,\n      vessel_port_display_name:\n        first.vessel_port_display_name,\n\n      port_latitude:\n        first.port_latitude,\n\n      port_longitude:\n        first.port_longitude,\n\n      airport_count:\n        airportsForPort.length,\n\n      ranked_airports:\n        airportsForPort\n    }\n  });\n}\n\nif (!output.length) {\n  throw new Error(\n    'No usable airports could be ranked from the Overpass response.'\n  );\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4752,
+        320
+      ],
+      "id": "646f1671-d41b-47e2-b5ab-39da9558f73b",
+      "name": "Rank Nearby Airports"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst output = [];\n\nconst MAX_STRAIGHT_LINE_DISTANCE_KM = 100;\n\nfor (const item of items) {\n  const data = item.json;\n  const airports = data.ranked_airports || [];\n\n  if (!Array.isArray(airports) || airports.length === 0) {\n    output.push({\n      json: {\n        ...data,\n        practical_airports: [],\n        practical_airport_count: 0,\n        filter_status: \"NO_AIRPORTS_FOUND\"\n      }\n    });\n    continue;\n  }\n\n  // First filter:\n  // 1. Must have IATA\n  // 2. Must not be military\n  // 3. Must be within 100 km straight-line distance\n  let practical = airports.filter(airport => {\n    const hasIata = airport.has_iata === true;\n    const isMilitary = airport.is_military === true;\n    const distance = Number(airport.straight_line_distance_km);\n\n    return (\n      hasIata &&\n      !isMilitary &&\n      Number.isFinite(distance) &&\n      distance <= MAX_STRAIGHT_LINE_DISTANCE_KM\n    );\n  });\n\n  // Sort by suitability first, then distance\n  practical.sort((a, b) => {\n    if (\n      Number(b.suitability_score) !==\n      Number(a.suitability_score)\n    ) {\n      return (\n        Number(b.suitability_score) -\n        Number(a.suitability_score)\n      );\n    }\n\n    return (\n      Number(a.straight_line_distance_km) -\n      Number(b.straight_line_distance_km)\n    );\n  });\n\n  // Keep maximum 5 candidates\n  const topAirports = practical.slice(0, 5);\n\n  output.push({\n    json: {\n      ...data,\n      practical_airports: topAirports,\n      practical_airport_count: topAirports.length,\n      maximum_straight_line_distance_km:\n        MAX_STRAIGHT_LINE_DISTANCE_KM,\n      filter_status:\n        topAirports.length > 0\n          ? \"PRACTICAL_AIRPORTS_FOUND\"\n          : \"NO_PRACTICAL_AIRPORTS_FOUND\"\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4976,
+        320
+      ],
+      "id": "ba5a6106-d516-44b1-bf9f-829cf8138fa8",
+      "name": "Filter Practical Airports"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n\n  const data = item.json;\n\n  const airports = data.practical_airports || [];\n\n  if (!Array.isArray(airports) || airports.length === 0) {\n    continue;\n  }\n\n  for (const airport of airports) {\n\n    const airportLat = Number(airport.latitude);\n    const airportLon = Number(airport.longitude);\n\n    const portLat = Number(data.port_latitude);\n    const portLon = Number(data.port_longitude);\n\n    if (\n      !Number.isFinite(airportLat) ||\n      !Number.isFinite(airportLon) ||\n      !Number.isFinite(portLat) ||\n      !Number.isFinite(portLon)\n    ) {\n      continue;\n    }\n\n    // OSRM uses longitude,latitude\n    const coordinates =\n      `${airportLon},${airportLat};${portLon},${portLat}`;\n\n    output.push({\n      json: {\n\n        vessel_port:\n          data.vessel_port,\n\n        vessel_port_display_name:\n          data.vessel_port_display_name,\n\n        port_latitude:\n          portLat,\n\n        port_longitude:\n          portLon,\n\n        airport_name:\n          airport.airport_name,\n\n        airport_name_local:\n          airport.airport_name_local,\n\n        airport_iata:\n          airport.iata_code,\n\n        airport_icao:\n          airport.icao_code,\n\n        airport_latitude:\n          airportLat,\n\n        airport_longitude:\n          airportLon,\n\n        straight_line_distance_km:\n          airport.straight_line_distance_km,\n\n        suitability_score:\n          airport.suitability_score,\n\n        osrm_coordinates:\n          coordinates,\n\n        osrm_status:\n          \"READY\"\n      }\n    });\n  }\n}\n\nif (!output.length) {\n  throw new Error(\n    'No valid airport coordinates available for OSRM routing.'\n  );\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5200,
+        320
+      ],
+      "id": "3954ca47-4d12-4c1d-bac7-3f440936c4a4",
+      "name": "Prepare OSRM Routes"
+    },
+    {
+      "parameters": {
+        "url": "=https://router.project-osrm.org/route/v1/driving/{{ $json.osrm_coordinates }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "overview",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        5424,
+        320
+      ],
+      "id": "8ef6babd-aea8-4c14-a8c4-4f2c93dcb5bb",
+      "name": "OSRM Route"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n\n  const osrm = item.json;\n\n  // Get the original airport/port information\n  // from the corresponding item in Prepare OSRM Routes.\n  const index = items.indexOf(item);\n\n  const original =\n    $('Prepare OSRM Routes').all()[index]?.json;\n\n  if (!original) {\n    continue;\n  }\n\n  const route = osrm.routes?.[0];\n\n  if (!route) {\n    output.push({\n      json: {\n        ...original,\n\n        ground_distance_km: null,\n        ground_travel_minutes: null,\n\n        osrm_status: \"NO_ROUTE_FOUND\"\n      }\n    });\n\n    continue;\n  }\n\n  const distanceMeters = Number(route.distance);\n  const durationSeconds = Number(route.duration);\n\n  const groundDistanceKm =\n    distanceMeters / 1000;\n\n  const groundTravelMinutes =\n    durationSeconds / 60;\n\n  output.push({\n    json: {\n\n      ...original,\n\n      // OSRM results\n      ground_distance_km:\n        Math.round(groundDistanceKm * 100) / 100,\n\n      ground_travel_minutes:\n        Math.round(groundTravelMinutes * 10) / 10,\n\n      ground_travel_hours:\n        Math.round((groundTravelMinutes / 60) * 100) / 100,\n\n      osrm_status:\n        \"ROUTE_FOUND\"\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5648,
+        320
+      ],
+      "id": "f69ab242-5ead-49fc-aadd-56b9cb943d69",
+      "name": "Calculate Ground Travel"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst grouped = {};\n\nfor (const item of items) {\n  const data = item.json;\n\n  const portKey =\n    data.vessel_port ||\n    `${data.port_latitude},${data.port_longitude}`;\n\n  if (!grouped[portKey]) {\n    grouped[portKey] = [];\n  }\n\n  grouped[portKey].push(data);\n}\n\nconst output = [];\n\nfor (const [portKey, airports] of Object.entries(grouped)) {\n\n  // Keep only airports where OSRM successfully found a route.\n  const valid = airports.filter(airport =>\n    airport.osrm_status === \"ROUTE_FOUND\" &&\n    Number.isFinite(Number(airport.ground_travel_minutes))\n  );\n\n  if (!valid.length) {\n    output.push({\n      json: {\n        vessel_port: airports[0]?.vessel_port || portKey,\n        selected_airport_status: \"NO_ROUTABLE_AIRPORT_FOUND\"\n      }\n    });\n\n    continue;\n  }\n\n  // Calculate final practical score.\n  const scored = valid.map(airport => {\n\n    let score = Number(airport.suitability_score || 0);\n\n    const groundMinutes =\n      Number(airport.ground_travel_minutes);\n\n    const groundDistance =\n      Number(airport.ground_distance_km);\n\n    // Strong preference for shorter actual road travel.\n    if (groundMinutes <= 30) {\n      score += 30;\n    } else if (groundMinutes <= 60) {\n      score += 20;\n    } else if (groundMinutes <= 120) {\n      score += 10;\n    } else {\n      score -= 10;\n    }\n\n    // Additional road-distance preference.\n    if (groundDistance <= 25) {\n      score += 15;\n    } else if (groundDistance <= 50) {\n      score += 10;\n    } else if (groundDistance <= 100) {\n      score += 5;\n    }\n\n    return {\n      ...airport,\n      final_airport_score: score\n    };\n  });\n\n  // Best airport first.\n  scored.sort((a, b) => {\n\n    if (\n      Number(b.final_airport_score) !==\n      Number(a.final_airport_score)\n    ) {\n      return (\n        Number(b.final_airport_score) -\n        Number(a.final_airport_score)\n      );\n    }\n\n    return (\n      Number(a.ground_travel_minutes) -\n      Number(b.ground_travel_minutes)\n    );\n  });\n\n  const best = scored[0];\n\n  output.push({\n    json: {\n\n      vessel_port:\n        best.vessel_port,\n\n      vessel_port_display_name:\n        best.vessel_port_display_name,\n\n      port_latitude:\n        best.port_latitude,\n\n      port_longitude:\n        best.port_longitude,\n\n      selected_airport_name:\n        best.airport_name,\n\n      selected_airport_iata:\n        best.airport_iata,\n\n      selected_airport_icao:\n        best.airport_icao,\n\n      selected_airport_latitude:\n        best.airport_latitude,\n\n      selected_airport_longitude:\n        best.airport_longitude,\n\n      straight_line_distance_km:\n        best.straight_line_distance_km,\n\n      ground_distance_km:\n        best.ground_distance_km,\n\n      ground_travel_minutes:\n        best.ground_travel_minutes,\n\n      ground_travel_hours:\n        best.ground_travel_hours,\n\n      airport_suitability_score:\n        best.suitability_score,\n\n      final_airport_score:\n        best.final_airport_score,\n\n      selected_airport_status:\n        \"BEST_PRACTICAL_AIRPORT_SELECTED\",\n\n      airport_candidates_evaluated:\n        scored.length,\n\n      alternative_airports:\n        scored.slice(1, 3).map(airport => ({\n          airport_name: airport.airport_name,\n          iata: airport.airport_iata,\n          ground_distance_km: airport.ground_distance_km,\n          ground_travel_minutes: airport.ground_travel_minutes,\n          final_airport_score: airport.final_airport_score\n        }))\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5840,
+        -16
+      ],
+      "id": "24a6088a-93ec-44b5-b076-b3fddabd6fc6",
+      "name": "Select Best Practical Airport"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst output = [];\n\nfor (const item of items) {\n  const data = item.json;\n\n  const requestedDate = new Date(data.utm_date_requested);\n  const vesselArrival = new Date(data.vessel_arrival);\n  const vesselDeparture = new Date(data.vessel_departure);\n\n  const groundTravelMinutes = Number(data.ground_travel_minutes);\n\n  if (\n    !Number.isFinite(requestedDate.getTime()) ||\n    !Number.isFinite(vesselArrival.getTime()) ||\n    !Number.isFinite(vesselDeparture.getTime())\n  ) {\n    output.push({\n      json: {\n        ...data,\n        timing_status: \"INVALID_DATE_DATA\",\n        route_status: \"TIMING_CALCULATION_FAILED\"\n      }\n    });\n\n    continue;\n  }\n\n  /*\n   * Buffer before vessel departure.\n   *\n   * This is deliberately conservative.\n   * We want the UTM member to reach the vessel port\n   * before the vessel's scheduled departure.\n   */\n  const safetyBufferHours = 12;\n\n  const groundTravelHours =\n    Number.isFinite(groundTravelMinutes)\n      ? groundTravelMinutes / 60\n      : null;\n\n  /*\n   * Latest safe arrival at the vessel port.\n   */\n  const latestSafePortArrival =\n    new Date(\n      vesselDeparture.getTime() -\n      (safetyBufferHours * 60 * 60 * 1000)\n    );\n\n  /*\n   * Latest time the member should leave the airport\n   * to reach the vessel port by the safe-arrival deadline.\n   */\n  const latestAirportDeparture =\n    groundTravelHours !== null\n      ? new Date(\n          latestSafePortArrival.getTime() -\n          (groundTravelHours * 60 * 60 * 1000)\n        )\n      : null;\n\n  /*\n   * Check whether the requested UTM date falls\n   * while the vessel is actually in port.\n   */\n  const vesselInPortOnRequestedDate =\n    requestedDate >= vesselArrival &&\n    requestedDate <= vesselDeparture;\n\n  /*\n   * Check whether the vessel is still in port\n   * on the requested date.\n   */\n  const requestedDateWithinPortStay =\n    requestedDate >= vesselArrival &&\n    requestedDate < vesselDeparture;\n\n  /*\n   * Determine whether this is potentially usable.\n   *\n   * We do NOT yet perform visa or flight availability checks.\n   * Those come later.\n   */\n  let timingStatus = \"CHECK_REQUIRED\";\n  let routeStatus = \"TIMING_CHECK_REQUIRED\";\n\n  if (requestedDateWithinPortStay) {\n    timingStatus = \"REQUESTED_DATE_WITHIN_VESSEL_PORT_STAY\";\n    routeStatus = \"TIMING_POTENTIALLY_FEASIBLE\";\n  }\n  else if (vesselDeparture < requestedDate) {\n    timingStatus = \"VESSEL_DEPARTS_BEFORE_REQUESTED_DATE\";\n    routeStatus = \"NOT_FEASIBLE_DATE_MISMATCH\";\n  }\n  else if (vesselArrival > requestedDate) {\n    timingStatus = \"VESSEL_ARRIVES_AFTER_REQUESTED_DATE\";\n    routeStatus = \"CHECK_ALTERNATIVE_JOINING_DATE\";\n  }\n\n  output.push({\n    json: {\n      ...data,\n\n      // Timing assumptions\n      safety_buffer_hours: safetyBufferHours,\n\n      // Travel\n      ground_travel_hours:\n        groundTravelHours !== null\n          ? Math.round(groundTravelHours * 100) / 100\n          : null,\n\n      // Vessel timing\n      vessel_in_port_on_requested_date:\n        vesselInPortOnRequestedDate,\n\n      requested_date_within_port_stay:\n        requestedDateWithinPortStay,\n\n      // Calculated deadlines\n      latest_safe_port_arrival:\n        latestSafePortArrival.toISOString(),\n\n      latest_airport_departure:\n        latestAirportDeparture\n          ? latestAirportDeparture.toISOString()\n          : null,\n\n      // Status\n      timing_status: timingStatus,\n      route_status: routeStatus\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6192,
+        0
+      ],
+      "id": "fe0dd87c-494b-41ae-95a3-63dd7637c4e5",
+      "name": "Calculate Joining Timing"
+    },
+    {
+      "parameters": {
+        "jsCode": "const airportItems = $input.all();\nconst routeItems = $('Prepare Travel Route Queries').all();\n\nif (!airportItems.length) {\n  throw new Error('No selected airport data received.');\n}\n\nif (!routeItems.length) {\n  throw new Error('No routes found in Prepare Travel Route Queries.');\n}\n\nfunction normalize(value) {\n  return String(value || '')\n    .toLowerCase()\n    .normalize('NFKD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, ' ')\n    .trim();\n}\n\n/*\n * Convert known Arabic/location names into stable\n * English comparison names.\n */\nfunction locationTokens(value) {\n\n  const raw = String(value || '').trim();\n  const n = normalize(raw);\n\n  const tokens = new Set();\n\n  if (n) {\n    tokens.add(n);\n  }\n\n  /*\n   * Beirut\n   */\n  if (\n    raw.includes('بيروت') ||\n    n.includes('beirut')\n  ) {\n    tokens.add('beirut');\n  }\n\n  /*\n   * Port Said\n   */\n  if (\n    raw.includes('بورسعيد') ||\n    n.includes('port said')\n  ) {\n    tokens.add('port said');\n  }\n\n  /*\n   * Port Said East / West should still\n   * be treated as Port Said for matching.\n   */\n  if (\n    n.includes('port said east') ||\n    n.includes('port said west')\n  ) {\n    tokens.add('port said');\n  }\n\n  return Array.from(tokens);\n}\n\nfunction matchLocation(route, airport) {\n\n  const routeValues = [\n    route.destination_port,\n    route.destination_city\n  ]\n    .filter(Boolean);\n\n  const airportValues = [\n    airport.vessel_port,\n    airport.vessel_port_display_name\n  ]\n    .filter(Boolean);\n\n  const routeTokens = [];\n\n  for (const value of routeValues) {\n    routeTokens.push(...locationTokens(value));\n  }\n\n  const airportTokens = [];\n\n  for (const value of airportValues) {\n    airportTokens.push(...locationTokens(value));\n  }\n\n  /*\n   * Exact normalized/alias match.\n   */\n  for (const r of routeTokens) {\n    for (const a of airportTokens) {\n\n      if (!r || !a) continue;\n\n      if (r === a) {\n        return true;\n      }\n\n      /*\n       * Partial match for longer names.\n       */\n      if (\n        r.length >= 5 &&\n        a.length >= 5 &&\n        (r.includes(a) || a.includes(r))\n      ) {\n        return true;\n      }\n    }\n  }\n\n  return false;\n}\n\nconst output = [];\n\nfor (const airportItem of airportItems) {\n\n  const airport = airportItem.json;\n\n  const matchedRoutes = routeItems.filter(item =>\n    matchLocation(item.json, airport)\n  );\n\n  if (!matchedRoutes.length) {\n    continue;\n  }\n\n  for (const routeItem of matchedRoutes) {\n\n    const route = routeItem.json;\n\n    output.push({\n      json: {\n\n        /*\n         * --------------------------------\n         * VESSEL / UTM\n         * --------------------------------\n         */\n        vessel_name:\n          route.vessel_name || null,\n\n        utm_date_requested:\n          route.utm_date_requested || null,\n\n        /*\n         * --------------------------------\n         * MEMBER\n         * --------------------------------\n         */\n        member_id:\n          route.member_id || null,\n\n        member_name:\n          route.member_name || null,\n\n        origin_city:\n          route.origin_city || null,\n\n        origin_country:\n          route.origin_country || null,\n\n        member_available_from:\n          route.member_available_from || null,\n\n        member_available_until:\n          route.member_available_until || null,\n\n        visa_permissions:\n          route.visa_permissions || [],\n\n        visa_status:\n          route.visa_status ||\n          'REQUIRES_CONFIRMATION',\n\n        /*\n         * --------------------------------\n         * VESSEL PORT\n         * --------------------------------\n         */\n        destination_port:\n          route.destination_port || null,\n\n        destination_city:\n          route.destination_city || null,\n\n        destination_country:\n          route.destination_country || null,\n\n        destination_country_code:\n          route.destination_country_code || null,\n\n        un_location_code:\n          route.un_location_code || null,\n\n        /*\n         * --------------------------------\n         * VESSEL SCHEDULE\n         * --------------------------------\n         */\n        vessel_arrival:\n          route.vessel_arrival || null,\n\n        vessel_departure:\n          route.vessel_departure || null,\n\n        port_stay_hours:\n          route.port_stay_hours || null,\n\n        schedule_status:\n          route.schedule_status || null,\n\n        date_relation:\n          route.date_relation || null,\n\n        /*\n         * --------------------------------\n         * SELECTED AIRPORT\n         * --------------------------------\n         */\n        selected_airport_name:\n          airport.selected_airport_name || null,\n\n        selected_airport_iata:\n          airport.selected_airport_iata || null,\n\n        selected_airport_icao:\n          airport.selected_airport_icao || null,\n\n        selected_airport_latitude:\n          airport.selected_airport_latitude || null,\n\n        selected_airport_longitude:\n          airport.selected_airport_longitude || null,\n\n        /*\n         * --------------------------------\n         * AIRPORT → PORT TRAVEL\n         * --------------------------------\n         */\n        straight_line_distance_km:\n          airport.straight_line_distance_km ?? null,\n\n        ground_distance_km:\n          airport.ground_distance_km ?? null,\n\n        ground_travel_minutes:\n          airport.ground_travel_minutes ?? null,\n\n        ground_travel_hours:\n          airport.ground_travel_hours ?? null,\n\n        airport_suitability_score:\n          airport.airport_suitability_score ?? null,\n\n        final_airport_score:\n          airport.final_airport_score ?? null,\n\n        selected_airport_status:\n          airport.selected_airport_status || null,\n\n        airport_candidates_evaluated:\n          airport.airport_candidates_evaluated ?? null,\n\n        alternative_airports:\n          airport.alternative_airports || [],\n\n        /*\n         * --------------------------------\n         * WORKFLOW STATUS\n         * --------------------------------\n         */\n        travel_status:\n          'AIRPORT_SELECTED',\n\n        route_status:\n          'READY_FOR_TIMING_FEASIBILITY'\n      }\n    });\n  }\n}\n\nif (!output.length) {\n\n  throw new Error(\n    'No routes could be matched to selected airports. ' +\n    'Check destination_port/destination_city against vessel_port.'\n  );\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6016,
+        -16
+      ],
+      "id": "86f27b92-cf2c-464b-824c-6fb39984eedf",
+      "name": "Merge Member Route Data"
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $env.AIRPORTS_CSV_PATH }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        3856,
+        320
+      ],
+      "id": "df534c5a-2837-4805-ac25-f3d107d3b39d",
+      "name": "Read Airport Database"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        4080,
+        320
+      ],
+      "id": "cb6f1ed2-0444-49c9-b967-df6719d1b35a",
+      "name": "Extract From File"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nif (!items.length) {\n  throw new Error('No airport records received from CSV.');\n}\n\nconst elements = [];\n\nfor (const item of items) {\n  const airport = item.json;\n\n  const lat = Number(airport.latitude_deg);\n  const lon = Number(airport.longitude_deg);\n\n  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {\n    continue;\n  }\n\n  const type = String(airport.type || '').toLowerCase();\n\n  // Keep practical passenger airports\n  if (\n    ![\n      'large_airport',\n      'medium_airport',\n      'small_airport'\n    ].includes(type)\n  ) {\n    continue;\n  }\n\n  const iata = String(airport.iata_code || '').trim();\n\n  // For crew travel we want airports with IATA codes\n  if (!iata) {\n    continue;\n  }\n\n  elements.push({\n    type: 'node',\n    lat: lat,\n    lon: lon,\n    tags: {\n      name: airport.name || null,\n      'name:en': airport.name || null,\n      iata: iata,\n      icao: airport.gps_code || null,\n      aeroway: 'aerodrome'\n    }\n  });\n}\n\nif (!elements.length) {\n  throw new Error('No usable airports found in airports.csv.');\n}\n\nreturn [\n  {\n    json: {\n      elements: elements\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4304,
+        320
+      ],
+      "id": "ca737569-e31d-4db8-90af-0ae966f07ab9",
+      "name": "Airport Database Adapter"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nif (!items.length) {\n  throw new Error('No joining feasibility records received.');\n}\n\nconst plans = [];\n\nfor (const item of items) {\n  const d = item.json;\n\n  const timingStatus = String(d.timing_status || '');\n  const routeStatus = String(d.route_status || '');\n\n  const isFeasible =\n    timingStatus === 'REQUESTED_DATE_WITHIN_VESSEL_PORT_STAY' &&\n    routeStatus === 'TIMING_POTENTIALLY_FEASIBLE';\n\n  let score = 0;\n\n  // Feasibility is the most important factor\n  if (isFeasible) {\n    score += 1000;\n  } else {\n    score -= 1000;\n  }\n\n  // Requested date alignment\n  if (d.vessel_in_port_on_requested_date === true) {\n    score += 200;\n  }\n\n  if (d.requested_date_within_port_stay === true) {\n    score += 200;\n  }\n\n  // Airport quality\n  score += Number(d.final_airport_score || 0);\n\n  // Ground travel\n  const groundMinutes = Number(d.ground_travel_minutes);\n\n  if (Number.isFinite(groundMinutes)) {\n    if (groundMinutes <= 30) {\n      score += 50;\n    } else if (groundMinutes <= 60) {\n      score += 30;\n    } else if (groundMinutes <= 120) {\n      score += 10;\n    } else {\n      score -= 20;\n    }\n  }\n\n  // Schedule confidence\n  const scheduleStatus =\n    String(d.schedule_status || '').toUpperCase();\n\n  if (scheduleStatus === 'SCHEDULED') {\n    score += 30;\n  } else if (scheduleStatus === 'ESTIMATED') {\n    score += 10;\n  }\n\n  // Visa information is pending, not an automatic rejection\n  const visaStatus =\n    String(d.visa_status || '').toUpperCase();\n\n  if (visaStatus === 'REQUIRES_CONFIRMATION') {\n    score -= 10;\n  }\n\n  let rejectionReason = null;\n\n  if (!isFeasible) {\n    if (\n      timingStatus ===\n      'VESSEL_DEPARTS_BEFORE_REQUESTED_DATE'\n    ) {\n      rejectionReason =\n        'VESSEL_DEPARTS_BEFORE_UTM_REQUESTED_DATE';\n    } else if (\n      timingStatus ===\n      'VESSEL_ARRIVES_AFTER_REQUESTED_DATE'\n    ) {\n      rejectionReason =\n        'VESSEL_ARRIVES_AFTER_UTM_REQUESTED_DATE';\n    } else {\n      rejectionReason =\n        'TIMING_OR_ROUTE_NOT_FEASIBLE';\n    }\n  }\n\n  plans.push({\n    ...d,\n\n    plan_feasible: isFeasible,\n\n    recommendation_score: score,\n\n    recommendation_status: isFeasible\n      ? (\n          visaStatus === 'REQUIRES_CONFIRMATION'\n            ? 'FEASIBLE_PENDING_VISA_CONFIRMATION'\n            : 'FEASIBLE'\n        )\n      : 'NOT_FEASIBLE',\n\n    rejection_reason: rejectionReason\n  });\n}\n\n// Best plans first\nplans.sort((a, b) => {\n  return (\n    Number(b.recommendation_score) -\n    Number(a.recommendation_score)\n  );\n});\n\n// Assign rank\nplans.forEach((plan, index) => {\n  plan.plan_rank = index + 1;\n});\n\n// Only feasible plans can become recommendations\nconst top3 = plans\n  .filter(plan => plan.plan_feasible)\n  .slice(0, 3);\n\nreturn [\n  {\n    json: {\n      vessel_name:\n        plans[0]?.vessel_name || null,\n\n      utm_date_requested:\n        plans[0]?.utm_date_requested || null,\n\n      total_plans_evaluated:\n        plans.length,\n\n      feasible_plan_count:\n        plans.filter(p => p.plan_feasible).length,\n\n      infeasible_plan_count:\n        plans.filter(p => !p.plan_feasible).length,\n\n      top_3_recommended_plans:\n        top3.map((plan, index) => ({\n          recommendation_rank: index + 1,\n\n          member_id:\n            plan.member_id,\n\n          member_name:\n            plan.member_name,\n\n          origin_city:\n            plan.origin_city,\n\n          origin_country:\n            plan.origin_country,\n\n          joining_port:\n            plan.destination_port,\n\n          joining_city:\n            plan.destination_city,\n\n          joining_country:\n            plan.destination_country,\n\n          vessel_arrival:\n            plan.vessel_arrival,\n\n          vessel_departure:\n            plan.vessel_departure,\n\n          port_stay_hours:\n            plan.port_stay_hours,\n\n          selected_airport_name:\n            plan.selected_airport_name,\n\n          selected_airport_iata:\n            plan.selected_airport_iata,\n\n          selected_airport_icao:\n            plan.selected_airport_icao,\n\n          ground_distance_km:\n            plan.ground_distance_km,\n\n          ground_travel_minutes:\n            plan.ground_travel_minutes,\n\n          schedule_status:\n            plan.schedule_status,\n\n          recommendation_score:\n            plan.recommendation_score,\n\n          recommendation_status:\n            plan.recommendation_status,\n\n          visa_status:\n            plan.visa_status\n        })),\n\n      all_evaluated_plans:\n        plans.map(plan => ({\n          plan_rank:\n            plan.plan_rank,\n\n          member_id:\n            plan.member_id,\n\n          member_name:\n            plan.member_name,\n\n          joining_port:\n            plan.destination_port,\n\n          vessel_arrival:\n            plan.vessel_arrival,\n\n          vessel_departure:\n            plan.vessel_departure,\n\n          plan_feasible:\n            plan.plan_feasible,\n\n          recommendation_score:\n            plan.recommendation_score,\n\n          recommendation_status:\n            plan.recommendation_status,\n\n          rejection_reason:\n            plan.rejection_reason\n        }))\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6416,
+        0
+      ],
+      "id": "6af2aa49-acec-4edc-ab80-d3bb19a149ca",
+      "name": "Rank & Recommend UTM Plans"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nif (!items.length) {\n  throw new Error('No UTM joining options received.');\n}\n\nconst first = items[0].json;\n\nconst vesselName = first.vessel_name || null;\nconst utmDate = first.utm_date_requested || null;\n\nif (!vesselName) {\n  throw new Error('Vessel name missing from joining options.');\n}\n\nif (!utmDate) {\n  throw new Error('UTM requested date missing from joining options.');\n}\n\n// Create a unique enquiry/project ID.\n// For now this is generated from vessel + requested date.\nconst safeVessel = vesselName\n  .replace(/[^a-zA-Z0-9]+/g, '-')\n  .replace(/^-|-$/g, '')\n  .toUpperCase();\n\nconst projectId = `VSL-${safeVessel}-${utmDate}`;\n\nreturn [\n  {\n    json: {\n      project_id: projectId,\n      vessel_name: vesselName,\n      utm_date_requested: utmDate,\n\n      joining_options: items.map(item => item.json),\n\n      form_status: 'READY_FOR_UTM_MEMBER_DETAILS'\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2272,
+        256
+      ],
+      "id": "53b79999-452e-4a02-b7ad-b532fe4c72f3",
+      "name": "Prepare UTM Form Context"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2b1beb9a-369d-4918-ba50-4e32f1903fd2",
+              "name": "project_id",
+              "value": "={{ $json.project_id }}",
+              "type": "string"
+            },
+            {
+              "id": "f40821d0-4f30-4c58-b5b8-35141e6e56dd",
+              "name": "vessel_name",
+              "value": "={{ $json.vessel_name }}",
+              "type": "string"
+            },
+            {
+              "id": "fc4f99f5-1386-4565-b3b2-15bea4a4fada",
+              "name": "utm_date_requested",
+              "value": "={{ $json.utm_date_requested }}",
+              "type": "string"
+            },
+            {
+              "id": "7fafc0a3-0090-4965-b164-95cb54e262e2",
+              "name": "form_status",
+              "value": "READY_FOR_UTM_MEMBER_DETAILS",
+              "type": "string"
+            },
+            {
+              "id": "00f35163-7bdb-47e7-a60d-542e42e34429",
+              "name": "created_at",
+              "value": "={{ $now }}",
+              "type": "string"
+            },
+            {
+              "id": "e49b8384-30af-46b6-be60-7823b9312a19",
+              "name": "joining_options",
+              "value": "={{ JSON.stringify($json.joining_options) }}",
+              "type": "string"
+            },
+            {
+              "id": "79e3df0d-d53e-4158-89ab-518a6139595d",
+              "name": "members",
+              "value": "[]",
+              "type": "string"
+            },
+            {
+              "id": "45994226-bd25-49b4-89b1-e5340da7b77b",
+              "name": "joining_preference",
+              "value": "Any feasible route",
+              "type": "string"
+            },
+            {
+              "id": "331f750c-046f-4e4b-960d-09a6de2a73bc",
+              "name": "route_mode",
+              "value": "DEFAULT_MUMBAI",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2144,
+        592
+      ],
+      "id": "4ef7ff80-740e-4f8c-b36e-8f533d5c2fd9",
+      "name": "Build Form Session Row"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst formUrl =\n  `${$env.N8N_BASE_URL || 'http://localhost:5678'}/form/5f3c2a9e-1d47-4b8a-9c6e-2e0b7d41a8f3`;\n\nreturn [{\n  json: {\n    ...data,\n\n    utm_form_url: formUrl,\n\n    utm_form_action_label:\n      'FIND BEST ROUTES FROM CURRENT LOCATION'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        464
+      ],
+      "id": "251cedec-f341-4ccf-b5f3-52f5d6fd9a81",
+      "name": "Attach UTM Form URL"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        2144,
+        -304
+      ],
+      "id": "ac8eb8b5-1663-432e-9d50-ad23c6f671f8",
+      "name": "Current Location Entry (Sub-workflow)"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Enquiry Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Enquiry Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Enquiry Email": {
+      "main": [
+        [
+          {
+            "node": "Filter Enquiry Sender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Enquiry Sender": {
+      "main": [
+        [
+          {
+            "node": "Normalise Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Vessel and Date (Ollama)": {
+      "main": [
+        [
+          {
+            "node": "Parse LLM Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LLM Extraction": {
+      "main": [
+        [
+          {
+            "node": "Maersk Vessel Schedule API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maersk Vessel Schedule API": {
+      "main": [
+        [
+          {
+            "node": "Normalise Port Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Email": {
+      "main": [
+        [
+          {
+            "node": "Extract Vessel and Date (Ollama)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Port Calls": {
+      "main": [
+        [
+          {
+            "node": "Generate UTM Joining Options",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate UTM Joining Options": {
+      "main": [
+        [
+          {
+            "node": "Prepare Default Mumbai Members",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare UTM Form Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Default Mumbai Members": {
+      "main": [
+        [
+          {
+            "node": "Prepare Travel Route Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Travel Route Queries": {
+      "main": [
+        [
+          {
+            "node": "Resolve Travel Airports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Travel Airports": {
+      "main": [
+        [
+          {
+            "node": "Prepare Port Geocoding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Port Geocoding": {
+      "main": [
+        [
+          {
+            "node": "Geocode Vessel Port",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Geocode Vessel Port": {
+      "main": [
+        [
+          {
+            "node": "Select Correct Vessel Port",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Correct Vessel Port": {
+      "main": [
+        [
+          {
+            "node": "Prepare Airport Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Airport Search": {
+      "main": [
+        [
+          {
+            "node": "Read Airport Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rank Nearby Airports": {
+      "main": [
+        [
+          {
+            "node": "Filter Practical Airports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Practical Airports": {
+      "main": [
+        [
+          {
+            "node": "Prepare OSRM Routes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare OSRM Routes": {
+      "main": [
+        [
+          {
+            "node": "OSRM Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OSRM Route": {
+      "main": [
+        [
+          {
+            "node": "Calculate Ground Travel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Ground Travel": {
+      "main": [
+        [
+          {
+            "node": "Select Best Practical Airport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Best Practical Airport": {
+      "main": [
+        [
+          {
+            "node": "Merge Member Route Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Member Route Data": {
+      "main": [
+        [
+          {
+            "node": "Calculate Joining Timing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Airport Database": {
+      "main": [
+        [
+          {
+            "node": "Extract From File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract From File": {
+      "main": [
+        [
+          {
+            "node": "Airport Database Adapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airport Database Adapter": {
+      "main": [
+        [
+          {
+            "node": "Rank Nearby Airports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Joining Timing": {
+      "main": [
+        [
+          {
+            "node": "Rank & Recommend UTM Plans",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare UTM Form Context": {
+      "main": [
+        [
+          {
+            "node": "Build Form Session Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Form Session Row": {
+      "main": [
+        [
+          {
+            "node": "Attach UTM Form URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Current Location Entry (Sub-workflow)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Travel Route Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "00000000-0000-4000-8000-000000000002",
+  "nodeGroups": [],
+  "id": "VESSELROUTE00002",
+  "tags": []
+}

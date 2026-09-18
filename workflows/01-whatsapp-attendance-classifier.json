@@ -1,0 +1,258 @@
+{
+  "name": "01 - WhatsApp Attendance Message Classifier",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## WhatsApp attendance classifier\nwacli posts each group message here. Only the configured group passes the filter. Llama 3.2 3B (Ollama, local) returns one of 9 categories plus confidence, reason, time and leave fields.\n\nThe model does not write to attendance. TeamOffice stays the source of truth.",
+        "height": 300,
+        "width": 700
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -420
+      ],
+      "id": "9b0eb9bf-777e-4659-996d-29339fb923f2",
+      "name": "Note: Flow"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-attendance",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "67bee912-a636-49cb-a185-6cef5ceb2260",
+      "name": "wacli Webhook",
+      "webhookId": "7c1e4b52-8f0a-4d3b-a6e1-3b9d2c5f7a10"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f2bb085c-0519-4d73-b3ce-ab416f25aba9",
+              "leftValue": "={{ $json.body.Chat }}",
+              "rightValue": "={{ $env.WHATSAPP_GROUP_JID }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        224,
+        0
+      ],
+      "id": "32fdeac1-4098-4897-8c98-22594c2bbae7",
+      "name": "Filter Attendance Group"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ca31370f-fadc-4dc4-a674-df24c7c18c71",
+              "name": "group",
+              "value": "={{ $json.body.ChatName }}",
+              "type": "string"
+            },
+            {
+              "id": "ae83a1be-66b8-4bb6-872a-a7ea3c2b53e6",
+              "name": "sender",
+              "value": "={{ $json.body.SenderJID }}",
+              "type": "string"
+            },
+            {
+              "id": "330c4626-24dd-40e7-ad8a-c48dd0446f2d",
+              "name": "timestamp",
+              "value": "={{ $json.body.Timestamp }}",
+              "type": "string"
+            },
+            {
+              "id": "bcbd46c5-adf1-4cbb-bbee-5a65f7650c71",
+              "name": "message",
+              "value": "={{ $json.body.Text }}",
+              "type": "string"
+            },
+            {
+              "id": "c9f1fe0f-8ef0-4916-bbc6-deb73be5ce7a",
+              "name": "fromMe",
+              "value": "={{ $json.body.FromMe }}",
+              "type": "boolean"
+            },
+            {
+              "id": "c8d8c7ca-001c-459e-a8bb-e24bde091e8c",
+              "name": "senderName",
+              "value": "={{ $json.body.PushName }}",
+              "type": "string"
+            },
+            {
+              "id": "562c9bd5-f9be-43ec-8e89-2fd1f888f700",
+              "name": "chatJID",
+              "value": "={{ $json.body.Chat }}",
+              "type": "string"
+            },
+            {
+              "id": "e0f0c423-294b-40e2-8cdc-0867c2712c6b",
+              "name": "messageID",
+              "value": "={{ $json.body.ID }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        448,
+        -96
+      ],
+      "id": "10d14f83-fdd7-4362-8beb-87979a794021",
+      "name": "Normalise Message"
+    },
+    {
+      "parameters": {
+        "promptType": "=define",
+        "text": "=You are an attendance-message classification system.\n\nAnalyze this WhatsApp message:\n\nEmployee: {{ $json.senderName }}\nSender: {{ $json.sender }}\nDate/time: {{ $json.timestamp }}\nGroup: {{ $json.group }}\nMessage: {{ $json.message }}\n\nClassify the message into exactly ONE of these categories:\n\nleave\nhalf_day\nwork_from_home\nlate_arrival\nearly_leaving\nbirthday\ncelebration\ngeneral\nunclear\n\nRules:\n\n- If the employee says they will reach office late or gives a future arrival time, classify as late_arrival.\n- If the employee says they will not attend office for the day, classify as leave.\n- If the employee says they will come/attend in the second half, classify as half_day.\n- If the employee says they are working from home or WFH, classify as work_from_home.\n- If the employee says they are leaving office early, classify as early_leaving.\n- Birthday announcement or birthday wishes = birthday.\n- Office celebration or congratulations = celebration.\n- Normal unrelated conversation = general.\n- Use unclear only when the message genuinely cannot be classified.\n\nImportant:\n\"Reaching office till 11am\" means the employee will arrive at 11am, so classify it as late_arrival.\n\nReturn only a JSON object that matches the output schema. No extra text.",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are an attendance-message classification system.  Analyze the WhatsApp message provided by the user.  Classify it into exactly one category: leave half_day work_from_home late_arrival early_leaving birthday celebration general unclear  Rules: - Reaching late or mentioning a future arrival time = late_arrival - Not attending office for the day = leave - Coming or attending in the second half = half_day - WFH or working from home = work_from_home - Leaving office early = early_leaving - Birthday announcement or birthday wishes = birthday - Office celebration or congratulations = celebration - Unrelated conversation = general - If uncertain = unclear  Do not calculate salary deductions. Do not assume leave is approved. Do not invent information."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        672,
+        -96
+      ],
+      "id": "3d94d32a-852b-4264-aa47-87a77e602dba",
+      "name": "Classify Attendance Message"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"category\": \"late_arrival\",\n  \"confidence\": 0.98,\n  \"reason\": \"Employee said they would arrive at 11:20.\",\n  \"employee\": \"Example Employee\",\n  \"date\": \"2026-08-31\",\n  \"mentioned_time\": \"11:20\",\n  \"leave_requested\": false,\n  \"leave_duration\": null\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        816,
+        112
+      ],
+      "id": "c7f07d78-5948-4d95-a772-50216c0f0ffb",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "model": "=llama3.2:3b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmOllama",
+      "typeVersion": 1,
+      "position": [
+        560,
+        112
+      ],
+      "id": "c61e54bb-2a60-4aa1-b616-8a59e108e86a",
+      "name": "Ollama Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "REPLACE_WITH_LOCAL_CREDENTIAL_ID",
+          "name": "Ollama account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "wacli Webhook": {
+      "main": [
+        [
+          {
+            "node": "Filter Attendance Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Attendance Group": {
+      "main": [
+        [
+          {
+            "node": "Normalise Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Message": {
+      "main": [
+        [
+          {
+            "node": "Classify Attendance Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Classify Attendance Message",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classify Attendance Message",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "00000000-0000-4000-8000-000000000001",
+  "nodeGroups": [],
+  "id": "WHATSAPPATTEND01",
+  "tags": []
+}

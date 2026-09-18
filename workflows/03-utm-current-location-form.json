@@ -1,0 +1,387 @@
+{
+  "name": "03 - UTM Current Location Form",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## UTM current-location form\nUsed when the team is not travelling from Mumbai. Collects up to 2 members (location, availability, visa permissions) and a joining preference, attaches the latest project session from the Data Table, then calls workflow 02 as a sub-workflow so the same route engine is reused.",
+        "height": 280,
+        "width": 900
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -400
+      ],
+      "id": "6d919106-eb9c-4a45-9c93-e20b90862bdc",
+      "name": "Note: Flow"
+    },
+    {
+      "parameters": {
+        "formTitle": "UTM Team Details",
+        "formDescription": "Enter the details of the UTM personnel available for the selected vessel joining.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Member 1 Name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Member 1 Current Location",
+              "placeholder": "Mumbai"
+            },
+            {
+              "fieldLabel": "Member 1 Country",
+              "placeholder": "India"
+            },
+            {
+              "fieldLabel": "Member 1 Available From",
+              "fieldType": "date"
+            },
+            {
+              "fieldLabel": "Member 1 Available Until",
+              "fieldType": "date"
+            },
+            {
+              "fieldLabel": "Member 1 Visa Permissions",
+              "placeholder": "Lebanon, UAE, Singapore"
+            },
+            {
+              "fieldLabel": "Member 2 Name"
+            },
+            {
+              "fieldLabel": "Member 2 Current Location"
+            },
+            {
+              "fieldLabel": "Member 2 Country"
+            },
+            {
+              "fieldLabel": "Member 2 Available From",
+              "fieldType": "date"
+            },
+            {
+              "fieldLabel": "Member 2 Available Until",
+              "fieldType": "date"
+            },
+            {
+              "fieldLabel": "Member 2 Visa Permissions"
+            },
+            {
+              "fieldLabel": "Joining Preference",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Any feasible route"
+                  },
+                  {
+                    "option": "Prefer earliest joining"
+                  },
+                  {
+                    "option": "Prefer shortest travel"
+                  },
+                  {
+                    "option": "Prefer longest port stay"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "09c1ec1f-ffbf-4952-b8c6-310d9ef7c860",
+      "name": "On form submission",
+      "webhookId": "5f3c2a9e-1d47-4b8a-9c6e-2e0b7d41a8f3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\n// Form submission field names\nconst member1Name = data[\"Member 1 Name\"] || null;\nconst member1Location = data[\"Member 1 Current Location\"] || null;\nconst member1Country = data[\"Member 1 Country\"] || null;\nconst member1From = data[\"Member 1 Available From\"] || null;\nconst member1Until = data[\"Member 1 Available Until\"] || null;\nconst member1Visa = data[\"Member 1 Visa Permissions\"] || \"\";\n\nconst member2Name = data[\"Member 2 Name\"] || null;\nconst member2Location = data[\"Member 2 Current Location\"] || null;\nconst member2Country = data[\"Member 2 Country\"] || null;\nconst member2From = data[\"Member 2 Available From\"] || null;\nconst member2Until = data[\"Member 2 Available Until\"] || null;\nconst member2Visa = data[\"Member 2 Visa Permissions\"] || \"\";\n\nconst joiningPreference = data[\"Joining Preference\"] || \"Any feasible route\";\n\nconst members = [];\n\nif (member1Name && member1Location && member1Country) {\n  members.push({\n    member_id: 1,\n    member_name: member1Name,\n    origin_city: member1Location,\n    origin_country: member1Country,\n    available_from: member1From,\n    available_until: member1Until,\n    visa_permissions: member1Visa\n      ? member1Visa.split(\",\").map(v => v.trim()).filter(Boolean)\n      : []\n  });\n}\n\nif (member2Name && member2Location && member2Country) {\n  members.push({\n    member_id: 2,\n    member_name: member2Name,\n    origin_city: member2Location,\n    origin_country: member2Country,\n    available_from: member2From,\n    available_until: member2Until,\n    visa_permissions: member2Visa\n      ? member2Visa.split(\",\").map(v => v.trim()).filter(Boolean)\n      : []\n  });\n}\n\nif (!members.length) {\n  throw new Error(\"At least one UTM member is required.\");\n}\n\nreturn [{\n  json: {\n    members,\n    joining_preference: joiningPreference,\n    form_submission_status: \"UTM_MEMBER_DETAILS_RECEIVED\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "25831dbe-be68-4409-986f-ede4bb7c5669",
+      "name": "Prepare Submitted UTM Members"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_DATA_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "VSL UTM Form Sessions"
+        },
+        "filters": {
+          "conditions": []
+        },
+        "limit": 1,
+        "orderBy": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "b0e7323d-2fa1-4a49-9ed0-d44bd0e74391",
+      "name": "Get Active UTM Form Session"
+    },
+    {
+      "parameters": {
+        "jsCode": "const sessionRows = $input.all();\n\nif (!sessionRows.length) {\n  throw new Error(\n    'No UTM form session was returned from the Data Table.'\n  );\n}\n\n// Get the newest session returned by Get Active UTM Form Session\nconst sessions = sessionRows\n  .map(item => item.json)\n  .filter(row => row.project_id);\n\nif (!sessions.length) {\n  throw new Error(\n    'No valid UTM project session was found.'\n  );\n}\n\n// Newest session first\nsessions.sort((a, b) => {\n  const dateA = new Date(a.created_at || 0).getTime();\n  const dateB = new Date(b.created_at || 0).getTime();\n\n  return dateB - dateA;\n});\n\nconst session = sessions[0];\n\n// Get the actual submitted members\nconst formData = $('Prepare Submitted UTM Members').first().json;\n\nconst members = formData.members || [];\n\nif (!members.length) {\n  throw new Error(\n    'No UTM members were submitted through the form.'\n  );\n}\n\n// Recover joining options from the session\nlet joiningOptions = session.joining_options;\n\nif (typeof joiningOptions === 'string') {\n  try {\n    joiningOptions = JSON.parse(joiningOptions);\n  } catch (error) {\n    throw new Error(\n      'The joining_options stored in VSL UTM Form Sessions is not valid JSON.'\n    );\n  }\n}\n\nif (!Array.isArray(joiningOptions) || !joiningOptions.length) {\n  throw new Error(\n    'No joining options were found in the project session.'\n  );\n}\n\nreturn [{\n  json: {\n    project_id: session.project_id,\n\n    vessel_name: session.vessel_name,\n\n    utm_date_requested: session.utm_date_requested,\n\n    members: members,\n\n    joining_options: joiningOptions,\n\n    joining_preference:\n      formData.joining_preference ||\n      'Any feasible route',\n\n    route_mode: 'CURRENT_LOCATION',\n\n    context_status: 'PROJECT_CONTEXT_ATTACHED'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "e3773337-78f2-49d3-8e54-f95d297797b6",
+      "name": "Build Current Location Project Context"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_DATA_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "VSL UTM Form Sessions"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "project_id",
+              "keyValue": "={{ $json.project_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "form_status": "CURRENT_LOCATION_DETAILS_RECEIVED",
+            "project_id": "={{ $json.project_id }}",
+            "vessel_name": "={{ $json.vessel_name }}",
+            "utm_date_requested": "={{ $json.utm_date_requested }}",
+            "members": "={{ JSON.stringify($json.members) }}",
+            "joining_preference": "={{ $json.joining_preference }}",
+            "route_mode": "CURRENT_LOCATION"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "project_id",
+              "displayName": "project_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "vessel_name",
+              "displayName": "vessel_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "utm_date_requested",
+              "displayName": "utm_date_requested",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "form_status",
+              "displayName": "form_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "members",
+              "displayName": "members",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "joining_preference",
+              "displayName": "joining_preference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "route_mode",
+              "displayName": "route_mode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        0
+      ],
+      "id": "0f31f7a5-8bbe-4116-9b44-e597a06dba47",
+      "name": "Update Form Session"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "VESSELROUTE00002",
+          "mode": "list",
+          "cachedResultName": "02 - Vessel Schedule and UTM Route Intelligence"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1344,
+        0
+      ],
+      "id": "ea6e6899-5434-4577-b5e0-dd7977654b2d",
+      "name": "Run Current Location Route Calculation"
+    },
+    {
+      "parameters": {
+        "jsCode": "const context = $('Build Current Location Project Context').first().json;\n\nif (!context.vessel_name) {\n  throw new Error('Vessel name missing from project context.');\n}\n\nif (!context.utm_date_requested) {\n  throw new Error('UTM requested date missing from project context.');\n}\n\nif (!Array.isArray(context.members) || !context.members.length) {\n  throw new Error('No UTM members found.');\n}\n\nif (!Array.isArray(context.joining_options) || !context.joining_options.length) {\n  throw new Error('No joining options found.');\n}\n\nreturn [{\n  json: {\n    project_id: context.project_id,\n    vessel_name: context.vessel_name,\n    utm_date_requested: context.utm_date_requested,\n    members: context.members,\n    joining_options: context.joining_options,\n    joining_preference: context.joining_preference || 'Any feasible route',\n    route_mode: 'CURRENT_LOCATION'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "630c37d5-5445-493d-9044-42f1640df89f",
+      "name": "Prepare Route Calculation Input"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Prepare Submitted UTM Members",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Submitted UTM Members": {
+      "main": [
+        [
+          {
+            "node": "Get Active UTM Form Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active UTM Form Session": {
+      "main": [
+        [
+          {
+            "node": "Build Current Location Project Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Current Location Project Context": {
+      "main": [
+        [
+          {
+            "node": "Update Form Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Form Session": {
+      "main": [
+        [
+          {
+            "node": "Prepare Route Calculation Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Route Calculation Input": {
+      "main": [
+        [
+          {
+            "node": "Run Current Location Route Calculation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "00000000-0000-4000-8000-000000000003",
+  "nodeGroups": [],
+  "id": "UTMCURRENTLOC003",
+  "tags": []
+}
