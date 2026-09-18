@@ -7,7 +7,7 @@ n8n workflows I built for a maritime engineering company in Mumbai, to take the 
 
 Local LLMs (Ollama) are used only where the input is unstructured text. Everything that decides whether a plan is feasible – port selection, airport screening, road routing, timing – is plain, testable JavaScript.
 
-![n8n](https://img.shields.io/badge/n8n-workflows-EA4B71) ![Ollama](https://img.shields.io/badge/Ollama-Llama%203.2%203B-222) ![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-F7DF1E) ![Status](https://img.shields.io/badge/status-in%completed-orange)
+![n8n](https://img.shields.io/badge/n8n-workflows-EA4B71) ![Ollama](https://img.shields.io/badge/Ollama-Llama%203.2%203B-222) ![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-F7DF1E) ![Status](https://img.shields.io/badge/status-in%20completed-orange)
 
 > This is a sanitised portfolio copy. API keys, credentials, internal IDs, email addresses, group IDs and business data have been removed. See [docs/security.md](docs/security.md).
 
