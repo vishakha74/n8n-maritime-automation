@@ -1,0 +1,48 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+credentials*.json
+secrets*.json
+
+# n8n local data (contains encryption key + database)
+.n8n/
+n8n-data/
+database.sqlite
+
+# wacli / WhatsApp session data
+wacli/
+*.session
+store/
+
+# Local data that must never be public
+airports.csv
+data/real/
+data/private/
+exports/
+private/
+local/
+*.dump
+*.backup
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Logs
+*.log
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
