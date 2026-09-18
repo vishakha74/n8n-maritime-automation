@@ -1,0 +1,12 @@
+{
+  "_note": "Synthetic wacli webhook bodies and the category the classifier is expected to return.",
+  "events": [
+    { "body": { "Chat": "0000000000@g.us", "ChatName": "Demo Office", "SenderJID": "demo-user-1", "PushName": "Demo User 1", "Timestamp": "2026-09-14T09:05:00+05:30", "Text": "Reaching office till 11am", "FromMe": false, "ID": "DEMO001" }, "expected": "late_arrival" },
+    { "body": { "Chat": "0000000000@g.us", "ChatName": "Demo Office", "SenderJID": "demo-user-2", "PushName": "Demo User 2", "Timestamp": "2026-09-14T08:40:00+05:30", "Text": "Not feeling well, won't be coming today", "FromMe": false, "ID": "DEMO002" }, "expected": "leave" },
+    { "body": { "Chat": "0000000000@g.us", "ChatName": "Demo Office", "SenderJID": "demo-user-3", "PushName": "Demo User 3", "Timestamp": "2026-09-14T09:30:00+05:30", "Text": "WFH today", "FromMe": false, "ID": "DEMO003" }, "expected": "work_from_home" },
+    { "body": { "Chat": "0000000000@g.us", "ChatName": "Demo Office", "SenderJID": "demo-user-4", "PushName": "Demo User 4", "Timestamp": "2026-09-14T10:00:00+05:30", "Text": "Will join in second half", "FromMe": false, "ID": "DEMO004" }, "expected": "half_day" },
+    { "body": { "Chat": "0000000000@g.us", "ChatName": "Demo Office", "SenderJID": "demo-user-5", "PushName": "Demo User 5", "Timestamp": "2026-09-14T15:10:00+05:30", "Text": "Need to leave by 4 today", "FromMe": false, "ID": "DEMO005" }, "expected": "early_leaving" },
+    { "body": { "Chat": "0000000000@g.us", "ChatName": "Demo Office", "SenderJID": "demo-user-6", "PushName": "Demo User 6", "Timestamp": "2026-09-14T11:00:00+05:30", "Text": "Happy birthday! Cake at 5", "FromMe": false, "ID": "DEMO006" }, "expected": "birthday" },
+    { "body": { "Chat": "0000000000@g.us", "ChatName": "Demo Office", "SenderJID": "demo-user-7", "PushName": "Demo User 7", "Timestamp": "2026-09-14T12:00:00+05:30", "Text": "Can someone share the printer password", "FromMe": false, "ID": "DEMO007" }, "expected": "general" }
+  ]
+}

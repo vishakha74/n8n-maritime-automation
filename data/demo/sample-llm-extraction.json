@@ -1,0 +1,8 @@
+{
+  "_note": "What the Parse LLM Extraction node produces from sample-enquiry.json.",
+  "raw_model_content": "{ \"vessel\\_name\": \"MV DEMO TRADER\", \"utm\\_date\\_requested\": \"2026-10-14\" }",
+  "parsed": {
+    "vessel_name": "MV DEMO TRADER",
+    "utm_date_requested": "2026-10-14"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "_note": "Synthetic enquiry. Not a real client, vessel or date request.",
+  "from": "Ops Desk <enquiries@example.com>",
+  "to": "planning@example.com",
+  "subject": "UTM attendance required - MV DEMO TRADER",
+  "date": "2026-09-14T09:12:00+05:30",
+  "body": "Dear Team,\n\nPlease arrange UTM attendance on board MV DEMO TRADER on 14 October 2026. Kindly confirm the team and joining port at the earliest.\n\nRegards,\nOps Desk"
+}

@@ -1,0 +1,75 @@
+{
+  "_note": "Trimmed output of Rank & Recommend UTM Plans for the synthetic enquiry. Beirut figures match the development test run.",
+  "vessel_name": "MV DEMO TRADER",
+  "utm_date_requested": "2026-10-14",
+  "total_plans_evaluated": 6,
+  "feasible_plan_count": 2,
+  "infeasible_plan_count": 4,
+  "top_3_recommended_plans": [
+    {
+      "recommendation_rank": 1,
+      "member_id": 1,
+      "member_name": "Member 1",
+      "origin_city": "Mumbai",
+      "origin_country": "India",
+      "joining_port": "Beirut",
+      "joining_city": "Beirut",
+      "joining_country": "Lebanon",
+      "vessel_arrival": "2026-10-13T21:00:00+03:00",
+      "vessel_departure": "2026-10-15T13:00:00+03:00",
+      "port_stay_hours": 40,
+      "selected_airport_name": "Beirut-Rafic Hariri International Airport",
+      "selected_airport_iata": "BEY",
+      "selected_airport_icao": "OLBA",
+      "ground_distance_km": 9.13,
+      "ground_travel_minutes": 7.7,
+      "schedule_status": "SCHEDULED",
+      "recommendation_status": "FEASIBLE_PENDING_VISA_CONFIRMATION",
+      "visa_status": "REQUIRES_CONFIRMATION"
+    },
+    {
+      "recommendation_rank": 2,
+      "member_id": 2,
+      "member_name": "Member 2",
+      "origin_city": "Mumbai",
+      "origin_country": "India",
+      "joining_port": "Beirut",
+      "joining_city": "Beirut",
+      "joining_country": "Lebanon",
+      "vessel_arrival": "2026-10-13T21:00:00+03:00",
+      "vessel_departure": "2026-10-15T13:00:00+03:00",
+      "port_stay_hours": 40,
+      "selected_airport_iata": "BEY",
+      "ground_distance_km": 9.13,
+      "ground_travel_minutes": 7.7,
+      "schedule_status": "SCHEDULED",
+      "recommendation_status": "FEASIBLE_PENDING_VISA_CONFIRMATION",
+      "visa_status": "REQUIRES_CONFIRMATION"
+    }
+  ],
+  "all_evaluated_plans_sample": [
+    {
+      "member_id": 1,
+      "joining_port": "Port Said East",
+      "vessel_departure": "2026-10-09T02:00:00+02:00",
+      "plan_feasible": false,
+      "recommendation_status": "NOT_FEASIBLE",
+      "rejection_reason": "VESSEL_DEPARTS_BEFORE_UTM_REQUESTED_DATE"
+    },
+    {
+      "member_id": 1,
+      "joining_port": "Mersin",
+      "vessel_arrival": "2026-10-17T08:00:00+03:00",
+      "plan_feasible": false,
+      "recommendation_status": "NOT_FEASIBLE",
+      "rejection_reason": "VESSEL_ARRIVES_AFTER_UTM_REQUESTED_DATE"
+    }
+  ],
+  "timing_detail_beirut": {
+    "safety_buffer_hours": 12,
+    "latest_safe_port_arrival": "2026-10-14T22:00:00.000Z",
+    "latest_airport_departure": "2026-10-14T21:52:18.000Z",
+    "timing_status": "REQUESTED_DATE_WITHIN_VESSEL_PORT_STAY",
+    "route_status": "TIMING_POTENTIALLY_FEASIBLE"
+  }
+}

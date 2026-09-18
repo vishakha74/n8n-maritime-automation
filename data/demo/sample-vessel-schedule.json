@@ -1,0 +1,50 @@
+{
+  "_note": "Synthetic response in the shape of the Maersk vessel schedule API. Times and voyages are invented.",
+  "vesselSchedules": [
+    {
+      "portName": "Port Said East",
+      "cityName": "Port Said",
+      "countryName": "Egypt",
+      "isoCountryCode": "EG",
+      "unLocationCode": "EGPSD",
+      "arrivalTime": "2026-10-08T06:00:00+02:00",
+      "departureTime": "2026-10-09T02:00:00+02:00",
+      "arrivalTimingClassifier": "SCHEDULED",
+      "departureTimingClassifier": "SCHEDULED",
+      "arrivalVoyageNumber": "640E",
+      "departureVoyageNumber": "640E",
+      "arrivalServiceName": "DEMO MED LOOP",
+      "arrivalServiceCode": "DM1"
+    },
+    {
+      "portName": "Beirut",
+      "cityName": "Beirut",
+      "countryName": "Lebanon",
+      "isoCountryCode": "LB",
+      "unLocationCode": "LBBEY",
+      "arrivalTime": "2026-10-13T21:00:00+03:00",
+      "departureTime": "2026-10-15T13:00:00+03:00",
+      "arrivalTimingClassifier": "SCHEDULED",
+      "departureTimingClassifier": "SCHEDULED",
+      "arrivalVoyageNumber": "640E",
+      "departureVoyageNumber": "641W",
+      "arrivalServiceName": "DEMO MED LOOP",
+      "arrivalServiceCode": "DM1"
+    },
+    {
+      "portName": "Mersin",
+      "cityName": "Mersin",
+      "countryName": "Turkey",
+      "isoCountryCode": "TR",
+      "unLocationCode": "TRMER",
+      "arrivalTime": "2026-10-17T08:00:00+03:00",
+      "departureTime": "2026-10-18T04:00:00+03:00",
+      "arrivalTimingClassifier": "ESTIMATED",
+      "departureTimingClassifier": "ESTIMATED",
+      "arrivalVoyageNumber": "641W",
+      "departureVoyageNumber": "641W",
+      "arrivalServiceName": "DEMO MED LOOP",
+      "arrivalServiceCode": "DM1"
+    }
+  ]
+}
