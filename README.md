@@ -1,13 +1,13 @@
-# Intelligent Operations Automation
+# n8n Maritime Operations Automation
 
-n8n workflows I built at VSL Marine Technology to take the manual work out of two recurring jobs:
+n8n workflows I built for a maritime engineering company in Mumbai, to take the manual work out of two recurring jobs:
 
 1. **Planning how a UTM (ultrasonic thickness measurement) team joins a vessel** – reading the enquiry, checking the vessel's schedule, and working out which port, airport and timing actually make sense.
 2. **Reading attendance messages in the office WhatsApp group** – "reaching by 11", "WFH today", "leaving early" – and turning them into structured records.
 
 Local LLMs (Ollama) are used only where the input is unstructured text. Everything that decides whether a plan is feasible – port selection, airport screening, road routing, timing – is plain, testable JavaScript.
 
-![n8n](https://img.shields.io/badge/n8n-workflows-EA4B71) ![Ollama](https://img.shields.io/badge/Ollama-Llama%203.2%203B-222) ![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-F7DF1E) ![Status](https://img.shields.io/badge/status-in%20development-orange)
+![n8n](https://img.shields.io/badge/n8n-workflows-EA4B71) ![Ollama](https://img.shields.io/badge/Ollama-Llama%203.2%203B-222) ![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-F7DF1E) ![Status](https://img.shields.io/badge/status-in%completed-orange)
 
 > This is a sanitised portfolio copy. API keys, credentials, internal IDs, email addresses, group IDs and business data have been removed. See [docs/security.md](docs/security.md).
 
@@ -159,7 +159,7 @@ ollama pull llama3.2:3b
 npx n8n                      # http://localhost:5678
 ```
 
-Import the three files from `workflows/`, reconnect Gmail and Ollama credentials, create the ` UTM Form Sessions` Data Table, and download `airports.csv` from [OurAirports](https://ourairports.com/data/).
+Import the three files from `workflows/`, reconnect Gmail and Ollama credentials, create the `UTM Form Sessions` Data Table, and download `airports.csv` from [OurAirports](https://ourairports.com/data/).
 
 ## Known limitations
 
@@ -175,6 +175,9 @@ See [docs/roadmap.md](docs/roadmap.md).
 
 ## About
 
-Built by **Vishakha** – frontend, product and automation work .
+Built by **Vishakha** — frontend, product and automation work at a maritime engineering company in Mumbai.
 
-© 2026 Vishakha. All rights reserved. Shared as a portfolio and documentation repository; see [LICENSE](LICENSE). Business logic and operational context belong to VSL Marine Technology.
+This repository documents work carried out for that company and is published as a portfolio and
+documentation reference, with the client, vessel and operational data removed. Rights in the
+underlying system belong to the company. No licence is granted to reuse the code or workflows;
+see [LICENSE](LICENSE).
