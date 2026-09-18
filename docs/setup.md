@@ -51,7 +51,7 @@ Then:
 
 - Reconnect the **Gmail** and **Ollama** credentials on the nodes that show a warning.
 - In 02, change the sender in **Filter Enquiry Sender** from `enquiries@example.com`.
-- Create a Data Table called **VSL UTM Form Sessions** with the columns in [`database/schema.sql`](../database/schema.sql).
+- Create a Data Table called **UTM Form Sessions** with the columns in [`database/schema.sql`](../database/schema.sql).
 - In 03, select that table in both Data Table nodes, and select workflow 02 in **Run Current Location Route Calculation**.
 - In 03, open the form trigger once and copy its production URL. If the ID differs from the one in **Attach UTM Form URL** (workflow 02), update it.
 - Activate the workflows.
